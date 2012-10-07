@@ -1,78 +1,84 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define READ_BUF_SIZE 1024 
+
 /* OpenSSL headers */
 #include "openssl/bio.h"
 #include "openssl/ssl.h"
 #include "openssl/err.h"
 
+/* A simple handler for a client connection. */
+int listenToClient(BIO *client) {
 
-int startServer() {
+    char buffer[READ_BUF_SIZE];
+    while(1) {
+        //read into our buffer, leave room for terminal
+        int numRead = BIO_read(client, buffer, READ_BUF_SIZE-1);
+        if(numRead < 1) {
+            if(numRead == 0) printf("The client disconnected.\n");
+            break;
+        }
 
-	//BIO *bio; //not needed for unencrypted connection??
-	BIO *abio;
-	BIO *out;
+        buffer[numRead] = '\0';
+        printf("Client: %s", buffer);
+    }
 
-	//combines BIO_new() and BIO_set_accept_port()
-	abio = BIO_new_accept("7777");
-	//this one actually tries to bind the port and whatnot
-	if(BIO_do_accept(abio) <= 0) {
-		fprintf(stderr, "Failed to intialise accept BIO.\n");
-		//prints the messages for all errors in the error queue
-		ERR_print_errors_fp(stderr);
-		return -1;
-	}
+    return 1;
+}
 
-	//wait for incoming connections
-	while(1) {
+/* Start a server, listening for incoming connections.
+ * Does not yet use any encryption / SSL / whatever. */
+int startServer(char *port, int (*clientHandler)(BIO *)) {
 
-		printf("Listening for incoming connection:\n");
+    //set the port we wish to listen on
+    BIO *acceptor = BIO_new_accept(port);
+    //bind and start listening
+    if(BIO_do_accept(acceptor) <= 0) {
+        fprintf(stderr, "Failed to intialise the acceptor BIO.\n");
+        ERR_print_errors_fp(stderr);
+        return -1;
+    }
 
-		if(BIO_do_accept(abio) <= 0) {
-			fprintf(stderr, "Failed to catch incoming connection?\n");
-			continue;
-		}
+    while(1) {
+        printf("Listening on %s:\n", port);
 
-		//grab the BIO * for this incoming connection
-		out = BIO_pop(abio);
+        //accept client connections as they arrive
+        if(BIO_do_accept(acceptor) <= 0) {
+            fprintf(stderr, "Failed to catch incoming connection?\n");
+            continue;
+        }
+        printf("Client connected!\n");
 
-		//do the handshake?? needed if unencrypted?
-		/*
-		if(BIO_do_handshake(out) <= 0) {
-			fprintf(stderr, "Failed to handshake with incoming connection.\n");
-			unsigned long err = ERR_peek_last_error();
-			fprintf(stderr, "%s\n", ERR_error_string(err, NULL));
-			continue;
-		}
-		*/
+        //grab the BIO, handle the client connection, then free it
+        BIO *client = BIO_pop(acceptor);
+        clientHandler(client);
+        BIO_free(client);
+    }
 
-		printf("We got a connection!\n");
+    BIO_free_all(acceptor);
 
-		char buffer[1024];
-		int numRead = BIO_read(abio, buffer, sizeof(buffer));
-		buffer[numRead] = '\0';
-		printf("They say: %s\n", buffer);
-
-		//we must free this once we are done?
-		BIO_free(out);
-	}
-
-	BIO_free(abio);
-
-	return 0;
+    return 0;
 }
 
 
-
-
 int main(int argc, char **argv) {
+    //grab any arguments
+    if(argc < 2) {
+        fprintf(stderr, "Expected a port number.\n");
+        exit(EXIT_FAILURE);
+    }
 
-	SSL_load_error_strings();
-	ERR_load_BIO_strings();
-	OpenSSL_add_all_algorithms();
+    char *port = argv[1];
 
-	startServer();
+    //init openssl
+    SSL_load_error_strings();
+    ERR_load_BIO_strings();
+    OpenSSL_add_all_algorithms();
 
-	exit(EXIT_SUCCESS);
+    //start the server listening
+    startServer(port, &listenToClient);
+
+    exit(EXIT_SUCCESS);
 
 }

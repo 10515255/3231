@@ -35,10 +35,12 @@ int openConnection(char *hostname, char *port) {
 
 	//then just read and write with BIO_read(bio, buffer, length)
 	//and BIO_write(bio.buffer, length)
-	char *msg = "HELLO";
-	BIO_write(bio, msg, strlen(msg));
+        char buffer[1024];
+        while(fgets(buffer, sizeof(buffer), stdin) != NULL) {
+            BIO_write(bio, buffer, strlen(buffer));
+        }
 
-	BIO_free(bio);
+	BIO_free_all(bio);
 	
 	return 0;
 }

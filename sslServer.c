@@ -8,14 +8,17 @@
 #include "openssl/ssl.h"
 #include "openssl/err.h"
 
+#include "sslCommunicate.h"
+
 /* A simple handler for a client connection. */
 int listenToClient(BIO *client) {
 
 	char buffer[READ_BUF_SIZE];
 	while(1) {
 		//read into our buffer, leave room for terminal
-		int numRead = BIO_read(client, buffer, READ_BUF_SIZE-1);
+		int numRead = readPacket(client, buffer, sizeof(buffer));
 		if(numRead < 1) {
+			printf("Error %d from readPacket()\n", numRead);
 			if(numRead == 0) printf("The client disconnected.\n");
 			break;
 		}

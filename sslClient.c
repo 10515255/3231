@@ -7,6 +7,7 @@
 #include "openssl/ssl.h"
 #include "openssl/err.h"
 
+#include "sslCommunicate.h"
 
 int openConnection(char *hostname, char *port) {
 
@@ -35,13 +36,18 @@ int openConnection(char *hostname, char *port) {
 
 	//then just read and write with BIO_read(bio, buffer, length)
 	//and BIO_write(bio.buffer, length)
-        char buffer[1024];
-        while(fgets(buffer, sizeof(buffer), stdin) != NULL) {
-            BIO_write(bio, buffer, strlen(buffer));
-        }
+	char buffer[1024];
+	while(fgets(buffer, sizeof(buffer), stdin) != NULL) {
+		int status = writePacket(bio, buffer, strlen(buffer));
+		if(status < 1) {
+			fprintf(stderr, "Error %d from sendPacket()\n", status);
+			if(status == 0) printf("They closed the connection.\n");
+			return status;
+		}
+	}
 
 	BIO_free_all(bio);
-	
+
 	return 0;
 }
 

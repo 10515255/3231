@@ -9,35 +9,8 @@
 
 #include "sslCommunicate.h"
 
-int openConnection(char *hostname, char *port) {
-
-	char *hostString = malloc(strlen(hostname) + strlen(port) + 2);
-	if(hostString == NULL) return -1;
-	sprintf(hostString, "%s:%s", hostname, port);
-	printf("Attempting to connect to %s\n", hostString);
-	
-	//attempt to establish a new connection 
-	//and ensure success
-	BIO *bio = BIO_new_connect(hostString);
-	if(bio == NULL) {
-		fprintf(stderr, "Failed to open connection.\n");
-		ERR_print_errors_fp(stderr);
-		return -1;
-	}
-
-	//this must be called to verify a succesfull connection
-	//has been established
-	if(BIO_do_connect(bio) <= 0) {
-		fprintf(stderr, "Failed to verify successful connection?\n");
-		unsigned long err = ERR_get_error();
-		fprintf(stderr, "Err: %lu\n", err); 
-		fprintf(stderr, "%s\n", ERR_error_string(err, NULL));
-		ERR_print_errors_fp(stderr);
-		return -1;
-	}
-
-	//then just read and write with BIO_read(bio, buffer, length)
-	//and BIO_write(bio.buffer, length)
+/* Just read lines from stdin, the send them in a packet to the server. */
+int handleServer(BIO *server) {
 	char buffer[1024];
 	while(fgets(buffer, sizeof(buffer), stdin) != NULL) {
 		int status = writePacket(bio, buffer, strlen(buffer));
@@ -48,6 +21,37 @@ int openConnection(char *hostname, char *port) {
 		}
 	}
 
+	//what to return?
+	return 1;
+}
+
+/* Connect to a server at the given hostname on the given port.
+ * Once a connection is established it passes the connection to
+ * the argument serverHandler() function, which undertakes the
+ * actual interaction with the server. */
+int connectToServer(char *hostname, char *port, int (*serverHandler)(BIO *) ) {
+
+	//combine the hostname and port into a string "hostname:port"
+	char *hostString = malloc(strlen(hostname) + strlen(port) + 2);
+	if(hostString == NULL) return -1;
+	sprintf(hostString, "%s:%s", hostname, port);
+	printf("Attempting to connect to %s\n", hostString);
+	
+	//prepare the connection?
+	BIO *bio = BIO_new_connect(hostString);
+	if(bio == NULL) {
+		ERR_print_errors_fp(stderr);
+		return -1;
+	}
+
+	//attempt to create the connection?
+	if(BIO_do_connect(bio) <= 0) {
+		unsigned long err = ERR_get_error();
+		fprintf(stderr, "%s\n", ERR_error_string(err, NULL));
+		ERR_print_errors_fp(stderr);
+		return -1;
+	}
+
 	//release resources we allocated
 	BIO_free_all(bio);
 	free(hostString);
@@ -55,9 +59,7 @@ int openConnection(char *hostname, char *port) {
 	return 0;
 }
 
-
-
-
+/* Check sufficient arguments, prepare OpenSSL and kickstart the connection. */
 int main(int argc, char **argv) {
 	if(argc < 3) {
 		fprintf(stderr, "Expected a hostname and port.\n");
@@ -67,6 +69,7 @@ int main(int argc, char **argv) {
 	char *hostname = argv[1];
 	char *port = argv[2];
 
+	/* OpenSSL initialisation */
 	SSL_load_error_strings();
 	ERR_load_BIO_strings();
 	OpenSSL_add_all_algorithms();

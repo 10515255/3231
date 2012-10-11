@@ -36,6 +36,9 @@ int listenToClient(BIO *client) {
 int runServer(char *port, int (*clientHandler)(BIO *)) {
 
 	//set the port we wish to listen on
+	//THIS ACCEPTS A HOSTNAME:PORT
+	//I.E.  *:7777   or 127.0.0.1:7777  or whatever
+	//leaving out the port means will FAIL SOMETIMS AIIEEE
 	BIO *acceptor = BIO_new_accept(port);
 	BIO_set_bind_mode(acceptor, BIO_BIND_REUSEADDR);
 	//bind and start listening

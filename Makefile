@@ -10,7 +10,7 @@ CFLAGS = -Wall -Werror -pedantic
 all : $(CLIENT) $(SERVER)
 
 $(CLIENT) : $(CLIENTOBJ) 
-	$(C99) $(CFLAGS) -o $(CLIENT) $(CLIENTOBJ) -lssl
+	$(C99) $(CFLAGS) -o $(CLIENT) $(CLIENTOBJ) -lssl 
 
 $(SERVER) : $(SERVEROBJ)
 	$(C99) $(CFLAGS) -o $(SERVER) $(SERVEROBJ) -lssl

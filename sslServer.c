@@ -23,7 +23,6 @@ int listenToClient(BIO *client) {
 			break;
 		}
 
-		//this aint reading no bpacke it thing it a stinrg still
 		buffer[numRead] = '\0';
 		printf("Client: %s", buffer);
 	}
@@ -33,31 +32,28 @@ int listenToClient(BIO *client) {
 
 /* Start a server, listening for incoming connections.
  * Does not yet use any encryption / SSL / whatever. */
-int runServer(char *port, int (*clientHandler)(BIO *)) {
+int runServer(char *hostname, char *port, int (*clientHandler)(BIO *)) {
 
-	//set the port we wish to listen on
-	//THIS ACCEPTS A HOSTNAME:PORT
-	//I.E.  *:7777   or 127.0.0.1:7777  or whatever
-	//leaving out the port means will FAIL SOMETIMS AIIEEE
-	BIO *acceptor = BIO_new_accept(port);
+	//setup the BIO structure for this connection
+	char *hostString = buildHostString(hostname, port); 
+	BIO *acceptor = BIO_new_accept(hostString);
 	BIO_set_bind_mode(acceptor, BIO_BIND_REUSEADDR);
+	
 	//bind and start listening
 	if(BIO_do_accept(acceptor) <= 0) {
-		printf("accept call in server.\n");
-		fprintf(stderr, "Failed to intialise the acceptor BIO.\n");
 		ERR_print_errors_fp(stderr);
 		return -1;
 	}
 
 	while(1) {
-		printf("Listening on %s:\n", port);
+		printf("\nListening on %s\n", hostString);
 
 		//accept client connections as they arrive
 		if(BIO_do_accept(acceptor) <= 0) {
 			fprintf(stderr, "Failed to catch incoming connection?\n");
 			continue;
 		}
-		printf("Client connected!\n");
+		printf("A client connected!\n");
 
 		//grab the BIO, handle the client connection, then free it
 		BIO *client = BIO_pop(acceptor);
@@ -65,7 +61,9 @@ int runServer(char *port, int (*clientHandler)(BIO *)) {
 		BIO_free(client);
 	}
 
+	//we have finished running the server, free any resources we allocated
 	BIO_free_all(acceptor);
+	free(hostString);
 
 	return 0;
 }
@@ -78,6 +76,7 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 
+	char *hostname = NULL;
 	char *port = argv[1];
 
 	//init openssl
@@ -86,7 +85,7 @@ int main(int argc, char **argv) {
 	OpenSSL_add_all_algorithms();
 
 	//start the server listening
-	runServer(port, &listenToClient);
+	runServer(hostname, port, &listenToClient);
 
 	exit(EXIT_SUCCESS);
 

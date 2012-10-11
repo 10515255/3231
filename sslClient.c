@@ -20,7 +20,6 @@ int handleServer(BIO *server) {
 			if(status == 0) printf("They closed the connection.\n");
 			return status;
 		}
-		printf("Status %d\n", status);
 	}
 
 	//what to return?
@@ -33,20 +32,15 @@ int handleServer(BIO *server) {
  * actual interaction with the server. */
 int connectToServer(char *hostname, char *port, int (*serverHandler)(BIO *) ) {
 
-	//combine the hostname and port into a string "hostname:port"
-	char *hostString = malloc(strlen(hostname) + strlen(port) + 2);
-	if(hostString == NULL) return -1;
-	sprintf(hostString, "%s:%s", hostname, port);
-	printf("Attempting to connect to %s\n", hostString);
-	
-	//prepare the connection?
+	//prepare the connection structure
+	char *hostString = buildHostString(hostname, port);
 	BIO *bio = BIO_new_connect(hostString);
 	if(bio == NULL) {
 		ERR_print_errors_fp(stderr);
 		return -1;
 	}
 
-	//attempt to create the connection?
+	//attempt to create the connection
 	if(BIO_do_connect(bio) <= 0) {
 		unsigned long err = ERR_get_error();
 		fprintf(stderr, "%s\n", ERR_error_string(err, NULL));
@@ -54,9 +48,10 @@ int connectToServer(char *hostname, char *port, int (*serverHandler)(BIO *) ) {
 		return -1;
 	}
 
+	//hand off the connection to the given handler function
 	int status = serverHandler(bio);
 
-	//release resources we allocated
+	//we are done with this connection, free any resources we allocated
 	BIO_free_all(bio);
 	free(hostString);
 
@@ -78,6 +73,8 @@ int main(int argc, char **argv) {
 	ERR_load_BIO_strings();
 	OpenSSL_add_all_algorithms();
 
-	int status = connectToServer(hostname, port, handleServer);
-	printf("Client finished with status %d\n", status);
+	//connect to the server, then run handleServer() on the resulting connection
+	int status = connectToServer(hostname, port, &handleServer);
+
+	return status;
 }

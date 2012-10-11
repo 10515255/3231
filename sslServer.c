@@ -36,6 +36,7 @@ int runServer(char *port, int (*clientHandler)(BIO *)) {
 
 	//set the port we wish to listen on
 	BIO *acceptor = BIO_new_accept(port);
+	BIO_set_bind_mode(acceptor, BIO_BIND_REUSEADDR);
 	//bind and start listening
 	if(BIO_do_accept(acceptor) <= 0) {
 		fprintf(stderr, "Failed to intialise the acceptor BIO.\n");

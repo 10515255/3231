@@ -1,5 +1,5 @@
-CLIENT = client.exe
-SERVER = server.exe
+CLIENT = client
+SERVER = server
 
 CLIENTOBJ = sslClient.o sslCommunicate.o
 SERVEROBJ = sslServer.o sslCommunicate.o

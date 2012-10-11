@@ -14,6 +14,8 @@ int openConnection(char *hostname, char *port) {
 	char *hostString = malloc(strlen(hostname) + strlen(port) + 2);
 	if(hostString == NULL) return -1;
 	sprintf(hostString, "%s:%s", hostname, port);
+	printf("Attempting to connect to %s\n", hostString);
+	
 	//attempt to establish a new connection 
 	//and ensure success
 	BIO *bio = BIO_new_connect(hostString);
@@ -40,13 +42,15 @@ int openConnection(char *hostname, char *port) {
 	while(fgets(buffer, sizeof(buffer), stdin) != NULL) {
 		int status = writePacket(bio, buffer, strlen(buffer));
 		if(status < 1) {
-			fprintf(stderr, "Error %d from sendPacket()\n", status);
+			fprintf(stderr, "Error %d from writePacket()\n", status);
 			if(status == 0) printf("They closed the connection.\n");
 			return status;
 		}
 	}
 
+	//release resources we allocated
 	BIO_free_all(bio);
+	free(hostString);
 
 	return 0;
 }

@@ -13,7 +13,7 @@
 int handleServer(BIO *server) {
 	char buffer[1024];
 	while(fgets(buffer, sizeof(buffer), stdin) != NULL) {
-		int status = writePacket(bio, buffer, strlen(buffer));
+		int status = writePacket(server, buffer, strlen(buffer));
 		if(status < 1) {
 			fprintf(stderr, "Error %d from writePacket()\n", status);
 			if(status == 0) printf("They closed the connection.\n");
@@ -74,5 +74,5 @@ int main(int argc, char **argv) {
 	ERR_load_BIO_strings();
 	OpenSSL_add_all_algorithms();
 
-	openConnection(hostname, port);
+	connectToServer(hostname, port, handleServer);
 }

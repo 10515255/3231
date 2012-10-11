@@ -18,8 +18,9 @@ int listenToClient(BIO *client) {
 		//read into our buffer, leave room for terminal
 		int numRead = readPacket(client, buffer, sizeof(buffer));
 		if(numRead < 1) {
-			printf("Error %d from readPacket()\n", numRead);
+			
 			if(numRead == 0) printf("The client disconnected.\n");
+			else printf("Error %d from readPacket()\n", numRead); 
 			break;
 		}
 
@@ -39,6 +40,7 @@ int runServer(char *port, int (*clientHandler)(BIO *)) {
 	BIO_set_bind_mode(acceptor, BIO_BIND_REUSEADDR);
 	//bind and start listening
 	if(BIO_do_accept(acceptor) <= 0) {
+		printf("accept call in server.\n");
 		fprintf(stderr, "Failed to intialise the acceptor BIO.\n");
 		ERR_print_errors_fp(stderr);
 		return -1;

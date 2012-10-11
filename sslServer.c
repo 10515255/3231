@@ -18,12 +18,12 @@ int listenToClient(BIO *client) {
 		//read into our buffer, leave room for terminal
 		int numRead = readPacket(client, buffer, sizeof(buffer));
 		if(numRead < 1) {
-			
 			if(numRead == 0) printf("The client disconnected.\n");
 			else printf("Error %d from readPacket()\n", numRead); 
 			break;
 		}
 
+		//this aint reading no bpacke it thing it a stinrg still
 		buffer[numRead] = '\0';
 		printf("Client: %s", buffer);
 	}

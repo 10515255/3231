@@ -11,6 +11,7 @@
 
 /* Just read lines from stdin, the send them in a packet to the server. */
 int handleServer(BIO *server) {
+
 	char buffer[1024];
 	while(fgets(buffer, sizeof(buffer), stdin) != NULL) {
 		int status = writePacket(server, buffer, strlen(buffer));
@@ -19,6 +20,7 @@ int handleServer(BIO *server) {
 			if(status == 0) printf("They closed the connection.\n");
 			return status;
 		}
+		printf("Status %d\n", status);
 	}
 
 	//what to return?
@@ -52,11 +54,13 @@ int connectToServer(char *hostname, char *port, int (*serverHandler)(BIO *) ) {
 		return -1;
 	}
 
+	int status = serverHandler(bio);
+
 	//release resources we allocated
 	BIO_free_all(bio);
 	free(hostString);
 
-	return 0;
+	return status;
 }
 
 /* Check sufficient arguments, prepare OpenSSL and kickstart the connection. */
@@ -74,5 +78,6 @@ int main(int argc, char **argv) {
 	ERR_load_BIO_strings();
 	OpenSSL_add_all_algorithms();
 
-	connectToServer(hostname, port, handleServer);
+	int status = connectToServer(hostname, port, handleServer);
+	printf("Client finished with status %d\n", status);
 }

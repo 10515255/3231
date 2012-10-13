@@ -1,3 +1,7 @@
+#define _POSIX_SOURCE
+
+#include <stdio.h>
+
 /* OpenSSL headers */
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
@@ -7,7 +11,15 @@
 #include <stdint.h>
 #include <arpa/inet.h>
 
+/* To determine size of a file before reading. */
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #include "sslGeneral.h"
+
+//reasonable?
+#define MAX_FILENAME_LENGTH 64 
+#define MAX_FILE_SIZE (1024*1024)
 
 /* Make repeated calls to BIO_write until our entire
 message has been sent. */
@@ -85,8 +97,131 @@ int readPacket(BIO *conn, char *buffer, int maxLength) {
 	return packetLength;
 }
 
-//used for BIO_new_connect
-//user for BIO_new_accept
+/* Send a file across the network. The filename argument
+ * will be sent to indicate to the other side what it should
+ * be saved as. */
+int sendFile(BIO *conn, FILE *file, char *filename) {
+	if(file == NULL || filename == NULL) return -1;
+
+	//determine the length of the file
+	struct stat fileDetails;
+	int fd = fileno(file);
+	if(fd < 0) {
+		perror("fileno() in sendFile():");
+		return -1;
+	}
+	int success = fstat(fd, &fileDetails);
+	if(success < 0) {
+		perror("sendFile(): ");
+		return -1;
+	}	
+
+	uint32_t fileSize = fileDetails.st_size;
+	//convert to network byte order
+	uint32_t netSize = htonl(fileSize);
+
+	/* Send a header message with the filename, and length */
+
+	//send the filename first in a simple packet
+	int status = writePacket(conn, filename, strlen(filename));
+	if(status < 1) return status;
+
+	//send the file length
+	status = sendAll(conn, (char *)&netSize, sizeof(uint32_t));
+	if(status < 1) return status;	
+
+	/* Now transfer the file */
+	rewind(file);
+	char fileBuffer[BUFSIZ];
+
+	while(1) {
+		//read a chunk
+		int numRead = fread(fileBuffer, 1, BUFSIZ, file); 
+		if(numRead == 0) break;
+
+		//send that chunk over the network
+		int status = sendAll(conn, fileBuffer, numRead);
+		if(status < 1) return status;
+
+		fileSize -= numRead;
+	}
+
+	printf("File transfer over\n");
+
+	if(fileSize != 0) {
+		fprintf(stderr, "sendFile(): fileSize non-zero after sending. Incomplete??\n");
+		return -1;
+	}
+
+	return 1;
+}
+
+/* Receive a file over the network, as sent by sendFile() above. */
+int recvFile(BIO *conn) {
+	//the filename will arrive in a simple packet
+	char filename[MAX_FILENAME_LENGTH];
+	int status = readPacket(conn, filename, sizeof(filename));
+	if(status < 1) return status;
+	printf("Got the filename, %s\n", filename);
+	
+	//read the file length
+	uint32_t numBytes = 0;
+	status = readAll(conn, (char *)&numBytes, sizeof(uint32_t));
+	if(status < 1) {
+		fprintf(stderr, "readAll() return %d in recvFile()\n", status);
+		return status;
+	}
+	numBytes = ntohl(numBytes);
+	printf("The file will have %u bytes.\n", numBytes);
+
+	/* Here we will eventually check to make sure the client has sufficient
+	paid storage for the incoming file.  They will probably wait for us to tell
+	themn whether to send the file or not */
+	if(numBytes > MAX_FILE_SIZE) {
+		fprintf(stderr, "That file is too big.\n");
+		return -1;
+	}
+
+	//open the file for writing
+	FILE *ofp = fopen(filename, "wb");
+	if(ofp == NULL) {
+		perror("fopen() in recvFile():");
+		return -1;
+	}
+
+	//read the file, and write to disk
+	char fileBuffer[BUFSIZ];
+	while(numBytes > 0) {
+		//read until a full buffer (unless remaining bytes would not fill it)
+		int amount = (numBytes < sizeof(fileBuffer)) ? numBytes : sizeof(fileBuffer);
+		printf("I'll attempt to read %d bytes\n", amount);
+		int status = readAll(conn, fileBuffer, amount);
+		if(status < 1) {
+			fclose(ofp);
+			return -1;
+		}
+
+		//write this much to disk
+		int numLeft = amount;
+		char *offset = fileBuffer;
+		while(numLeft != 0) {
+			printf("I'll attempt to write %d bytes\n", numLeft);
+			int numWritten = fwrite(offset, 1, numLeft, ofp);
+			printf("I wrote %d\n", numWritten);
+
+			offset += numWritten;
+			numLeft -= numWritten;
+		}
+
+		numBytes -= amount;
+	}
+
+	printf("Finished receiving file.\n");
+	fclose(ofp);
+
+	return 1;
+}
+
 /* Join a hostname string and a port string into the format expected
  * by the openssl calls BIO_new_connect and BIO_new_accept.
  *

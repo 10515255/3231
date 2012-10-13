@@ -14,6 +14,14 @@ int writePacket(BIO *conn, char *buffer, int length);
 /* Receive a simple packet. */
 int readPacket(BIO *conn, char *buffer, int maxLength);
 
+/* Receive a file over the network, as sent by sendFile() above. */
+int recvFile(BIO *conn);
+
+/* Send a file across the network. The filename argument
+ * will be sent to indicate to the other side what it should
+ * be saved as. */
+int sendFile(BIO *conn, FILE *file, char *filename);
+
 /* Combine a hostname and port to a "hostname:port" string.
  * Returns a pointer to the new string in dynamic memory. */
 char *buildHostString(char *hostname, char *port);

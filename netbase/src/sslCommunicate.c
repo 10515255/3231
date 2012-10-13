@@ -1,13 +1,13 @@
-#include "sslCommunicate.h"
-
 /* OpenSSL headers */
-#include "openssl/bio.h"
-#include "openssl/ssl.h"
-#include "openssl/err.h"
+#include <openssl/bio.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 /* For our simple packet structure */
 #include <stdint.h>
 #include <arpa/inet.h>
+
+#include "sslCommunicate.h"
 
 /* Make repeated calls to BIO_write until our entire
 message has been sent. */

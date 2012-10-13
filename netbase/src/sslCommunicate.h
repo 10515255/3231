@@ -1,7 +1,6 @@
-/* OpenSSL headers */
-#include "openssl/bio.h"
-#include "openssl/ssl.h"
-#include "openssl/err.h"
+/* Headers and includes for the function in sslCommunicate.h */
+
+#include <openssl/bio.h>
 
 /* Write until we have sent all <length> bytes. */
 int sendAll(BIO *conn, char *buffer, int length);

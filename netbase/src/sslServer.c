@@ -6,7 +6,7 @@
 #include "openssl/ssl.h"
 #include "openssl/err.h"
 
-#include "sslCommunicate.h"
+#include "sslGeneral.h"
 #include "sslServer.h"
 
 /* Start a server, listening for incoming connections.

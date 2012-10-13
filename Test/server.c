@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "../netbase/netbase.h"
+
 #define READ_BUF_SIZE 1024 
 
 /* A simple handler for a client connection. */
@@ -33,12 +35,9 @@ int main(int argc, char **argv) {
 	char *hostname = NULL;
 	char *port = argv[1];
 
-	//init openssl
-	SSL_load_error_strings();
-	ERR_load_BIO_strings();
-	OpenSSL_add_all_algorithms();
 
 	//start the server listening
+	initOpenSSL();
 	runServer(hostname, port, &listenToClient);
 
 	exit(EXIT_SUCCESS);

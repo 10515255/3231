@@ -5,7 +5,7 @@
 #include "openssl/ssl.h"
 #include "openssl/err.h"
 
-#include "sslCommunicate.h"
+#include "sslGeneral.h"
 #include "sslClient.h"
 
 /* Connect to a server at the given hostname on the given port.

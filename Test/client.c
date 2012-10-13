@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../netbase/netbase.h"
+
 /* Just read lines from stdin, the send them in a packet to the server. */
 int handleServer(BIO *server) {
 
@@ -29,12 +31,8 @@ int main(int argc, char **argv) {
 	char *hostname = argv[1];
 	char *port = argv[2];
 
-	/* OpenSSL initialisation */
-	SSL_load_error_strings();
-	ERR_load_BIO_strings();
-	OpenSSL_add_all_algorithms();
-
 	//connect to the server, then run handleServer() on the resulting connection
+	initOpenSSL();
 	int status = connectToServer(hostname, port, &handleServer);
 
 	return status;

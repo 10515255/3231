@@ -18,3 +18,5 @@ int readPacket(BIO *conn, char *buffer, int maxLength);
  * Returns a pointer to the new string in dynamic memory. */
 char *buildHostString(char *hostname, char *port);
 
+/* Initialise OpenSSL for use */
+void initOpenSSL();

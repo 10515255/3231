@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include <arpa/inet.h>
 
-#include "sslCommunicate.h"
+#include "sslGeneral.h"
 
 /* Make repeated calls to BIO_write until our entire
 message has been sent. */
@@ -106,4 +106,12 @@ char *buildHostString(char *hostname, char *port) {
 	snprintf(hostString, numChars, "%s:%s", hostname, port);
 
 	return hostString;
+}
+
+/* Initialise OpenSSL for use */
+void initOpenSSL() {
+	SSL_load_error_strings();
+	ERR_load_BIO_strings();
+	OpenSSL_add_all_algorithms();
+	return;
 }

@@ -13,6 +13,7 @@ int handleServer(BIO *server) {
 		return -1;
 	}
 	int status = sendFile(server, ifp, "bug.txt");
+	fclose(ifp);
 	return status;
 }
 

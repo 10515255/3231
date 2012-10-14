@@ -129,7 +129,6 @@ int sendFile(BIO *conn, FILE *file, char *filename) {
 	//send the file length
 	status = sendAll(conn, (char *)&netSize, sizeof(uint32_t));
 	if(status < 1) return status;	
-
 	/* Now transfer the file */
 	rewind(file);
 	char fileBuffer[BUFSIZ];
@@ -162,6 +161,8 @@ int recvFile(BIO *conn) {
 	char filename[MAX_FILENAME_LENGTH];
 	int status = readPacket(conn, filename, sizeof(filename));
 	if(status < 1) return status;
+	//null terminate the filename, so we can use it from this array
+	filename[status] = '\0';
 	printf("Got the filename, %s\n", filename);
 	
 	//read the file length
@@ -191,6 +192,9 @@ int recvFile(BIO *conn) {
 
 	//read the file, and write to disk
 	char fileBuffer[BUFSIZ];
+	printf("The file will have %u bytes.\n", numBytes);
+	uint32_t bytesLeft = numBytes;
+	printf("The file will have %u bytes.\n", bytesLeft);
 	while(numBytes > 0) {
 		//read until a full buffer (unless remaining bytes would not fill it)
 		int amount = (numBytes < sizeof(fileBuffer)) ? numBytes : sizeof(fileBuffer);
@@ -208,6 +212,7 @@ int recvFile(BIO *conn) {
 			fclose(ofp);
 			return -1;
 		}
+		printf("I read %d bytes\n", numWritten);
 
 		numBytes -= amount;
 	}

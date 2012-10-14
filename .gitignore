@@ -2,4 +2,4 @@
 *.[oa]
 *.exe
 .nfs*
-
+netbase/netbase.h

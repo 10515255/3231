@@ -6,6 +6,20 @@
 
 #define READ_BUF_SIZE 1024 
 
+int respondToRequest(BIO *client, char *request) {
+
+		char *reply = "Unexpected command.\n";
+		if(strcmp("ls\n", request) == 0) {
+			reply = "You want to see your files?\n";
+		}
+		else if(strcmp("cd\n", request) == 0) {
+			reply = "You want to change directory?\n";
+		}
+
+		int status = writePacket(client, reply, strlen(reply));
+		return status;
+}
+
 /* A simple handler for a client connection. */
 int listenToClient(BIO *client) {
 
@@ -16,22 +30,16 @@ int listenToClient(BIO *client) {
 		if(numRead < 1) {
 			if(numRead == 0) printf("The client disconnected.\n");
 			else printf("Error %d from readPacket()\n", numRead); 
-			break;
+			return numRead;
 		}
-
+		//really got to add a "sendString" which just delegates
+		//to sendPacket, but includes the terminal char
 		buffer[numRead] = '\0';
-		//printf("Client: %s", buffer);
-		char *reply = "Unexpected command.\n";
-		if(strcmp("ls\n", buffer) == 0) {
-			reply = "You want to see your files?\n";
-		}
-		else if(strcmp("cd\n", buffer) == 0) {
-			reply = "You want to change directory?\n";
-		}
+		printf("Client: %s", buffer);
 
-		int status = writePacket(client, reply, strlen(reply));
+		int status = respondToRequest(client, buffer);
 		if(status < 1) {
-			printf("Error %d from writePacket()\n", status);
+			printf("Error %d from respondToRequest()\n", status);
 			return status;
 		}
 	}

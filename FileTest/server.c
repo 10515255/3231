@@ -15,8 +15,6 @@ int listenToClient(BIO *client) {
 
 int main(int argc, char **argv) {
 	//grab any arguments char *hostname = NULL;
-	char *port = NULL;
-
 	if(argc < 2 || argc > 3) {
 		printf("Usage:\n");
 		printf(">server hostname port\n");

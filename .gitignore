@@ -3,3 +3,5 @@
 *.exe
 .nfs*
 netbase/netbase.h
+client
+server

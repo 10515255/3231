@@ -202,15 +202,11 @@ int recvFile(BIO *conn) {
 		}
 
 		//write this much to disk
-		int numLeft = amount;
-		char *offset = fileBuffer;
-		while(numLeft != 0) {
-			printf("I'll attempt to write %d bytes\n", numLeft);
-			int numWritten = fwrite(offset, 1, numLeft, ofp);
-			printf("I wrote %d\n", numWritten);
-
-			offset += numWritten;
-			numLeft -= numWritten;
+		int numWritten = fwrite(fileBuffer, 1, amount, ofp);
+		if(numWritten != amount) {
+			perror("fwrite() in recvFile()");
+			fclose(ofp);
+			return -1;
 		}
 
 		numBytes -= amount;

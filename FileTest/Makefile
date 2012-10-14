@@ -5,4 +5,4 @@ server : server.c
 client : client.c
 	$(GCC) -o client client.c -L"../netbase" -lnetbase -lssl
 clean :
-	rm -f server client
+	rm -f server client bug.txt

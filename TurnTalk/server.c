@@ -37,15 +37,16 @@ int listenToClient(BIO *client) {
 }
 
 int main(int argc, char **argv) {
-	//grab any arguments
-	if(argc < 2) {
-		fprintf(stderr, "Expected a port number.\n");
+	//grab any arguments char *hostname = NULL;
+	if(argc < 2 || argc > 3) {
+		printf("Usage:\n");
+		printf(">server hostname port\n");
+		printf(">server port\n");
 		exit(EXIT_FAILURE);
 	}
 
-	char *hostname = NULL;
-	char *port = argv[1];
-
+	char *hostname = (argc == 3) ? argv[1] : NULL;
+	char *port = (argc == 3) ? argv[2] : argv[1];
 
 	//start the server listening
 	initOpenSSL();

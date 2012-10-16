@@ -15,7 +15,7 @@ int writePacket(BIO *conn, char *buffer, int length);
 int readPacket(BIO *conn, char *buffer, int maxLength);
 
 /* Send a string via a simple packet. */
-int writeString(BIO *conn, char *buffer, int length);
+int writeString(BIO *conn, char *buffer);
 
 /* Read a string from a simple packet */
 int readString(BIO *conn, char *buffer, int maxLength);

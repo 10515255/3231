@@ -77,6 +77,11 @@ int writePacket(BIO *conn, char *buffer, int length) {
 	return length;
 }
 
+int writeString(BIO *conn, char *string) {
+	//include the terminal character in our packet
+	return writePacket(conn, string, strlen(string)+1);
+}
+
 /* Read a simple packet structure as it arrives over the 
  * network.  It returns the length of the body, which is the
  * number of bytes which it copies into the give buffer. */
@@ -95,6 +100,10 @@ int readPacket(BIO *conn, char *buffer, int maxLength) {
 	if(status < 1) return status;
 
 	return packetLength;
+}
+
+int readString(BIO *conn, char *buffer, int maxLength) {
+	return readPacket(conn, buffer, maxLength);
 }
 
 /* Send a file across the network. The filename argument

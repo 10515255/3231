@@ -14,6 +14,12 @@ int writePacket(BIO *conn, char *buffer, int length);
 /* Receive a simple packet. */
 int readPacket(BIO *conn, char *buffer, int maxLength);
 
+/* Send a string via a simple packet. */
+int writeString(BIO *conn, char *buffer, int length);
+
+/* Read a string from a simple packet */
+int readString(BIO *conn, char *buffer, int maxLength);
+
 /* Receive a file over the network, as sent by sendFile() above. */
 int recvFile(BIO *conn);
 

@@ -16,6 +16,10 @@ int handleServer(BIO *server) {
 			return status;
 		}
 
+		if(strncmp(buffer, "grab ", 5) == 0) {
+			status = recvFile(server);
+			continue;
+		}
 		//now read a packet
 		status = readPacket(server, buffer, sizeof(buffer));	
 		if(status < 1) {

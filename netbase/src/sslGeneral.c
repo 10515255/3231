@@ -203,13 +203,10 @@ int recvFile(BIO *conn) {
 
 	//read the file, and write to disk
 	char fileBuffer[BUFSIZ];
-	printf("The file will have %u bytes.\n", numBytes);
 	uint32_t bytesLeft = numBytes;
-	printf("The file will have %u bytes.\n", bytesLeft);
 	while(numBytes > 0) {
 		//read until a full buffer (unless remaining bytes would not fill it)
 		int amount = (numBytes < sizeof(fileBuffer)) ? numBytes : sizeof(fileBuffer);
-		printf("I'll attempt to read %d bytes\n", amount);
 		int status = readAll(conn, fileBuffer, amount);
 		if(status < 1) {
 			fclose(ofp);
@@ -223,12 +220,10 @@ int recvFile(BIO *conn) {
 			fclose(ofp);
 			return -1;
 		}
-		printf("I read %d bytes\n", numWritten);
 
 		numBytes -= amount;
 	}
 
-	printf("Finished receiving file.\n");
 	fclose(ofp);
 
 	return 1;

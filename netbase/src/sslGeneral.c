@@ -30,9 +30,7 @@ int sendAll(BIO *conn, char *buffer, int length) {
 	while(numLeft > 0) {
 		char *offset = buffer + totalSent;
 		int numSent = BIO_write(conn, offset, numLeft);
-		if(numSent < 1) {
-			return numSent;
-		}
+		if(numSent < 1) return numSent;
 
 		totalSent += numSent;
 		numLeft -= numSent;
@@ -50,9 +48,7 @@ int readAll(BIO *conn, char *buffer, int length) {
 	while(numLeft > 0) {
 		char *offset = buffer + totalRead;
 		int numRead = BIO_read(conn, offset, numLeft);
-		if(numRead < 1) {
-			return numRead;
-		}
+		if(numRead < 1) return numRead;
 
 		totalRead += numRead;
 		numLeft -= numRead;
@@ -61,7 +57,7 @@ int readAll(BIO *conn, char *buffer, int length) {
 	return totalRead;
 }
 
-/* Write the buffer contents over the network, using a simpl
+/* Write the buffer contents over the network, using a simple
  * packet structure.  The first 4 bytes are a header indicating
  * how many bytes to follow (in the body). */
 int writePacket(BIO *conn, char *buffer, int length) {
@@ -77,10 +73,6 @@ int writePacket(BIO *conn, char *buffer, int length) {
 	return length;
 }
 
-int writeString(BIO *conn, char *string) {
-	//include the terminal character in our packet
-	return writePacket(conn, string, strlen(string)+1);
-}
 
 /* Read a simple packet structure as it arrives over the 
  * network.  It returns the length of the body, which is the
@@ -93,7 +85,10 @@ int readPacket(BIO *conn, char *buffer, int maxLength) {
 
 	int packetLength = ntohl(numBytes);
 	//ensure buffer has capacity
-	if(packetLength > maxLength) return -2;
+	if(packetLength > maxLength) {
+		fprintf(stderr, "readPacket() received a packet longer than the allocated space.\n");
+		return -2;
+	}
 
 	//read the packet body
 	status = readAll(conn, buffer, packetLength);
@@ -102,6 +97,13 @@ int readPacket(BIO *conn, char *buffer, int maxLength) {
 	return packetLength;
 }
 
+/* Send a null-terminated string in a simple packet. */
+int writeString(BIO *conn, char *string) {
+	//include the terminal character in our packet
+	return writePacket(conn, string, strlen(string)+1);
+}
+
+/* Read a null-terminated string from a simple packet */
 int readString(BIO *conn, char *buffer, int maxLength) {
 	return readPacket(conn, buffer, maxLength);
 }

@@ -4,7 +4,7 @@
 #include <openssl/rsa.h>
 #include <openssl/engine.h>
 
-#include "../Encryption/encryption.h"
+#include "../netbase/netbase.h"
 
 #define MAX_FILE_SIZE 1024
 

@@ -203,7 +203,6 @@ int recvFile(BIO *conn) {
 
 	//read the file, and write to disk
 	char fileBuffer[BUFSIZ];
-	uint32_t bytesLeft = numBytes;
 	while(numBytes > 0) {
 		//read until a full buffer (unless remaining bytes would not fill it)
 		int amount = (numBytes < sizeof(fileBuffer)) ? numBytes : sizeof(fileBuffer);

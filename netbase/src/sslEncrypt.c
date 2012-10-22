@@ -4,9 +4,15 @@
 #include <openssl/engine.h>
 #include <openssl/md5.h>
 
-#include "encryption.h"
+#include "sslEncrypt.h"
 
 #define MAX_FILE_SIZE (1024*1024)
+
+/* Load the full contents of a file */
+unsigned char *loadFile(char *filename) {
+
+/
+}
 
 int signFile(char *filename, char *encryptedFilename,  RSA *privateKey) {
 	FILE *file = fopen(filename, "rb");
@@ -15,7 +21,7 @@ int signFile(char *filename, char *encryptedFilename,  RSA *privateKey) {
 		return -1;
 	}
 
-	char bytes[MAX_FILE_SIZE];
+	unsigned char bytes[MAX_FILE_SIZE];
 	fseek(file, 0, SEEK_END);
 	long fileSize = ftell(file);
 	rewind(file);
@@ -28,8 +34,7 @@ int signFile(char *filename, char *encryptedFilename,  RSA *privateKey) {
 	}
 	fclose(file);
 
-	//might be a bit biffer?
-	char encrypted[MAX_FILE_SIZE];
+	unsigned char encrypted[MAX_FILE_SIZE];
 	int length = RSA_private_encrypt(fileSize, bytes, encrypted, privateKey, RSA_PKCS1_PADDING);
 	
 	//write it out
@@ -56,7 +61,7 @@ int verifyFile(char *filename, char *decryptedFilename, RSA *publicKey) {
 		return -1;
 	}
 
-	char bytes[MAX_FILE_SIZE];
+	unsigned char bytes[MAX_FILE_SIZE];
 	fseek(file, 0, SEEK_END);
 	long fileSize = ftell(file);
 	rewind(file);
@@ -70,7 +75,7 @@ int verifyFile(char *filename, char *decryptedFilename, RSA *publicKey) {
 	fclose(file);
 
 	//might be a bit biffer?
-	char decrypted[MAX_FILE_SIZE];
+	unsigned char decrypted[MAX_FILE_SIZE];
 	int length = RSA_public_decrypt(fileSize, bytes, decrypted, publicKey, RSA_PKCS1_PADDING);
 	
 	//write it out
@@ -97,7 +102,7 @@ int encryptFile(char *filename, char *encryptedFilename, RSA *publicKey) {
 		return -1;
 	}
 
-	char bytes[MAX_FILE_SIZE];
+	unsigned char bytes[MAX_FILE_SIZE];
 	fseek(file, 0, SEEK_END);
 	long fileSize = ftell(file);
 	rewind(file);
@@ -110,7 +115,7 @@ int encryptFile(char *filename, char *encryptedFilename, RSA *publicKey) {
 	}
 	fclose(file);
 
-	char encrypted[MAX_FILE_SIZE];
+	unsigned char encrypted[MAX_FILE_SIZE];
 	int length = RSA_public_encrypt(fileSize, bytes, encrypted, publicKey, RSA_PKCS1_PADDING);
 	
 	//write it out
@@ -137,7 +142,7 @@ int decryptFile(char *filename, char *decryptedFilename, RSA *privateKey) {
 		return -1;
 	}
 
-	char bytes[MAX_FILE_SIZE];
+	unsigned char bytes[MAX_FILE_SIZE];
 	fseek(file, 0, SEEK_END);
 	long fileSize = ftell(file);
 	rewind(file);
@@ -151,7 +156,7 @@ int decryptFile(char *filename, char *decryptedFilename, RSA *privateKey) {
 	fclose(file);
 
 	//might be a bit biffer?
-	char decrypted[MAX_FILE_SIZE];
+	unsigned char decrypted[MAX_FILE_SIZE];
 	int length = RSA_private_decrypt(fileSize, bytes, decrypted, privateKey, RSA_PKCS1_PADDING);
 	
 	//write it out
@@ -207,6 +212,44 @@ int calculateMD5(char *filename, unsigned char *hash) {
 	return 0;
 }
 
+
+/* Load an RSA structure with the contents of the given file,
+ * using the giving function to perform loading. */
+RSA *loadKey(char *keyFilename, RSA *(*keyReader)(FILE *, RSA **, pem_password_cb *, void *) ) {
+	//open the file and ensure success
+	FILE *keyFile = fopen(keyFilename, "r");
+	if(keyFile == NULL) {
+		perror("loadKey");
+		return NULL;
+	}
+
+	//allocate the RSA structure, load it from file 
+	RSA *key = RSA_new();
+	if(key != NULL) {
+		key = keyReader(keyFile, &key, NULL, NULL);
+	}
+
+	//catch failures of RSA_new() or keyReader()
+	if(key == NULL) {
+		ERR_print_errors_fp(stderr);
+		RSA_free(key);
+	}
+
+	fclose(keyFile);
+	return key;
+}
+
+/* Load a private key from the given file into an RSA structure */
+RSA *loadPrivateKey(char *filename) {
+	return loadKey(filename, &PEM_read_RSAPrivateKey);
+}
+
+/* Load a public key from the given file into an RSA structure */
+RSA *loadPublicKey(char *filename) {
+	return loadKey(filename, &PEM_read_RSA_PUBKEY);
+}
+
+/*
 int main(int argc, char **argv) {
 	printf("1");
 	fflush(stdout);
@@ -216,3 +259,4 @@ int main(int argc, char **argv) {
 		putchar(hash[i]);
 	}
 }
+*/

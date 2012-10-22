@@ -1,4 +1,4 @@
-/* Headers and includes for the function in sslCommunicate.h */
+/* Headers and includes for the functions in sslCommunicate.c */
 
 #include <openssl/bio.h>
 

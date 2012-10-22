@@ -1,3 +1,6 @@
+/* Header and include for the funtions in sslEncrypt.c */
+
+#include <openssl/rsa.h>
 
 int signFile(char *filename, char *encryptedFilename,  RSA *privateKey);
 

@@ -1,41 +1,65 @@
 #include <stdio.h>
 #include <stdlib.h>
+
 #include <openssl/rsa.h>
 #include <openssl/engine.h>
 #include <openssl/md5.h>
+#include <openssl/pem.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "sslEncrypt.h"
 
 #define MAX_FILE_SIZE (1024*1024)
 
-/* Load the full contents of a file */
-unsigned char *loadFile(char *filename) {
+/* Load the full contents of a file, into a buffer in memory.
+ * Returns the buffer, and fills the size into the argument int.*/
+unsigned char *loadFile(char *filename, int *fileSize) {
+	//determine the file size
+	struct stat s;
+	int status = stat(filename, &s);
+	if(status == -1) {
+		perror("loadFile");
+		return NULL;
+	}
 
-/
+	FILE *ifp = fopen(filename, "rb");
+	if(ifp == NULL) {
+		perror("loadFile");
+		return NULL;
+	}
+
+	//allocate space to hold the contents in memory
+	unsigned char *buffer = malloc(sizeof(unsigned char) * s.st_size);
+	if(buffer == NULL) {
+		fprintf(stderr, "malloc() failed in loadFile\n");
+		exit(EXIT_FAILURE);
+	}
+
+	//read the contents of the file into the buffer
+	int numRead = fread(buffer, 1, s.st_size, ifp);
+	if(numRead != s.st_size) {
+		perror("loadFile");
+		free(buffer);
+		return NULL;
+	}
+	
+	*fileSize = s.st_size;
+	return buffer;
 }
 
 int signFile(char *filename, char *encryptedFilename,  RSA *privateKey) {
-	FILE *file = fopen(filename, "rb");
-	if(file == NULL) {
-		perror("signFile");
-		return -1;
-	}
 
-	unsigned char bytes[MAX_FILE_SIZE];
-	fseek(file, 0, SEEK_END);
-	long fileSize = ftell(file);
-	rewind(file);
-
-	int numRead = fread(bytes, 1, fileSize, file);
-	if(numRead != fileSize) {
-		perror("signFile");
-		fclose(file);
-		return -2;
-	}
-	fclose(file);
+	int fileSize = 0;
+	//load file into memory and fill fileSize for us
+	unsigned char *file = loadFile(filename, &fileSize);
 
 	unsigned char encrypted[MAX_FILE_SIZE];
-	int length = RSA_private_encrypt(fileSize, bytes, encrypted, privateKey, RSA_PKCS1_PADDING);
+	int length = RSA_private_encrypt(fileSize, file, encrypted, privateKey, RSA_PKCS1_PADDING);
+
+	//free the original file from memory
+	free(file);
 	
 	//write it out
 	FILE *ofp = fopen(encryptedFilename, "wb");
@@ -251,12 +275,12 @@ RSA *loadPublicKey(char *filename) {
 
 /*
 int main(int argc, char **argv) {
-	printf("1");
-	fflush(stdout);
-	unsigned char hash[MD5_DIGEST_LENGTH];
-	calculateMD5("encryption.c", hash);
-	for(int i=0; i<MD5_DIGEST_LENGTH; ++i) {
-		putchar(hash[i]);
+	int filesize;
+	unsigned char *file = loadFile(argv[1], &filesize);
+	for(int i=0; i<filesize; ++i) {
+		putchar(file[i]);	
 	}
+	free(file);
+	return 0;
 }
 */

@@ -8,6 +8,9 @@ int sendAll(BIO *conn, char *buffer, int length);
 /* Read until we have received <length> bytes. */
 int readAll(BIO *conn, char *buffer, int length);
 
+int readInt(BIO *conn);
+int sendInt(BIO *conn, unsigned int n);
+
 /* Send a simple packet */
 int writePacket(BIO *conn, char *buffer, int length);
 

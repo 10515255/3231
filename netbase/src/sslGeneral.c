@@ -32,3 +32,14 @@ char *buildHostString(char *hostname, char *port) {
 	return hostString;
 }
 
+unsigned int sizeOfFile(char *filename) {
+	//determine the file size
+	struct stat s;
+	int status = stat(filename, &s);
+	if(status == -1) {
+		perror("loadFile");
+		return -1;
+	}
+
+	return s.st_size;
+}

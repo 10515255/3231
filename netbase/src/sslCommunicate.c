@@ -166,6 +166,27 @@ int sendFile(BIO *conn, FILE *file, char *filename) {
 	return 1;
 }
 
+int readInt(BIO *conn) {
+
+	uint32_t number = -1;
+	int status = readAll(conn, (char *)number, sizeof(uint32_t));
+	if(status < 1) {
+		fprintf(stderr, "readAll() return %d in readInt()\n", status);
+		return -1;
+	}
+	number = ntohl(number);
+	return number;
+}
+
+int sendInt(BIO *conn, unsigned int n) {
+
+	uint32_t number = htonl(n);
+	int status = sendAll(conn, (char *)number, sizeof(uint32_t));
+	if(status < 1) return status;	
+
+	return 1;
+}
+
 /* Receive a file over the network, as sent by sendFile() above. */
 int recvFile(BIO *conn) {
 	//the filename will arrive in a simple packet

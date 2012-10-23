@@ -11,19 +11,14 @@
 #include <sys/stat.h>
 
 #include "sslEncrypt.h"
+#include "sslGeneral.h"
 
 #define MAX_FILE_SIZE (1024*1024)
 
 /* Load the full contents of a file, into a buffer in memory.
  * Returns the buffer, and fills the size into the argument int.*/
 unsigned char *loadFile(char *filename, int *fileSize) {
-	//determine the file size
-	struct stat s;
-	int status = stat(filename, &s);
-	if(status == -1) {
-		perror("loadFile");
-		return NULL;
-	}
+	*fileSize = sizeOfFile(filename);
 
 	FILE *ifp = fopen(filename, "rb");
 	if(ifp == NULL) {
@@ -32,21 +27,20 @@ unsigned char *loadFile(char *filename, int *fileSize) {
 	}
 
 	//allocate space to hold the contents in memory
-	unsigned char *buffer = malloc(sizeof(unsigned char) * s.st_size);
+	unsigned char *buffer = malloc(sizeof(unsigned char) * (*fileSize));
 	if(buffer == NULL) {
 		fprintf(stderr, "malloc() failed in loadFile\n");
 		exit(EXIT_FAILURE);
 	}
 
 	//read the contents of the file into the buffer
-	int numRead = fread(buffer, 1, s.st_size, ifp);
-	if(numRead != s.st_size) {
+	int numRead = fread(buffer, 1, (*fileSize), ifp);
+	if(numRead != (*fileSize)) {
 		perror("loadFile");
 		free(buffer);
 		return NULL;
 	}
 	
-	*fileSize = s.st_size;
 	return buffer;
 }
 
@@ -225,29 +219,12 @@ unsigned char *decryptData(unsigned char *input, int inLength, int *outLength, u
 	return output;
 }
 
-int calculateMD5(char *filename, unsigned char *hash) {
-	FILE *ifp = fopen(filename, "rb");
-	if(ifp == NULL) {
-		perror("calculateMD5");
-		return -1;
-	}
+int calculateMD5(unsigned char *bytes, int length,  unsigned char *hash) {
 
-	unsigned char bytes[MAX_FILE_SIZE];
-	fseek(ifp, 0, SEEK_END);
-	long fileSize = ftell(ifp);
-	rewind(ifp);
-
-	int numRead = fread(bytes, 1, fileSize, ifp);
-	if(numRead != fileSize) {
-		perror("calculateMD5");
-		fclose(ifp);
-		return -2;
-	}
-
-	unsigned char *result = MD5(bytes, fileSize, hash);
+	unsigned char *result = MD5(bytes, length, hash);
 	if(result == NULL) {
 		fprintf(stderr, "MD5 failed or something.\n");
-		return -3;
+		return -1;
 	}
 
 	return 0;
@@ -290,6 +267,18 @@ EVP_PKEY *loadPublicKey(char *filename) {
 	return loadKey(filename, &PEM_read_PUBKEY);
 }
 
+unsigned char *randomBytes(int n) {
+	unsigned char *output = malloc(n);
+	if(output == NULL) {
+		fprintf(stderr, "malloc() failed in randomBytes()\n");
+		exit(EXIT_FAILURE);
+	}
+
+	RAND_bytes(output, n);
+
+	return output;
+}
+
 int main(int argc, char **argv) {
 	int fileSize;
 	unsigned char *file = loadFile(argv[1], &fileSize);
@@ -298,6 +287,8 @@ int main(int argc, char **argv) {
 	unsigned char iv[32];
 	RAND_bytes(key, 32);
 	RAND_bytes(iv, 32);
+
+
 
 	int outLength;
 	unsigned char *output = encryptData(file, fileSize, &outLength, key, iv);

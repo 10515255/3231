@@ -1,8 +1,8 @@
 CLIENT = client
 SERVER = server
 
-NETBASE = ../netbase/libnetbase.a
-LINKNETBASE = -L"../netbase" -lnetbase
+NETBASE = ../../netbase/libnetbase.a
+LINKNETBASE = -L"../../netbase" -lnetbase
 GCC = gcc -std=c99 -Wall -Werror -pedantic
 
 
@@ -16,7 +16,7 @@ $(SERVER) : server.c $(NETBASE)
 
 #jump to the netbase folder, and run the makefile located there to build the netbase library
 $(NETBASE) :
-	make -C ../netbase/src
+	make -C ../../netbase/src
 
 clean : 
 	rm -f $(CLIENT) $(SERVER)

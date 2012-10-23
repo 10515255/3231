@@ -1,10 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <openssl/rsa.h>
-#include <openssl/engine.h>
 #include <openssl/md5.h>
 #include <openssl/pem.h>
+#include <openssl/err.h>
+#include <openssl/evp.h>
+#include <openssl/rand.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -49,155 +50,179 @@ unsigned char *loadFile(char *filename, int *fileSize) {
 	return buffer;
 }
 
-int signFile(char *filename, char *encryptedFilename,  RSA *privateKey) {
-
-	int fileSize = 0;
-	//load file into memory and fill fileSize for us
-	unsigned char *file = loadFile(filename, &fileSize);
-
-	unsigned char encrypted[MAX_FILE_SIZE];
-	int length = RSA_private_encrypt(fileSize, file, encrypted, privateKey, RSA_PKCS1_PADDING);
-
-	//free the original file from memory
-	free(file);
-	
-	//write it out
-	FILE *ofp = fopen(encryptedFilename, "wb");
-	if(ofp == NULL) {
-		perror("signFile");
-		return -3;
+/* Produce a signature for the given data, using the given private key.
+ * Return a char* to the signature in memory, and fill it's length into
+ * the argument sigLength. */
+unsigned char *signData(void *data, int length, EVP_PKEY *privKey, unsigned int *sigLength) {
+	//initialise the digest context
+	EVP_MD_CTX *ctx = EVP_MD_CTX_create();
+	if(ctx == NULL) {
+		ERR_print_errors_fp(stderr);
+		return NULL;
 	}
 
-	int numWritten = fwrite(encrypted, 1, length, ofp);
-	if(numWritten != length) {
-		perror("signFile");
-		return -4;
+	//select SHA512 as the digest to use
+	int status = EVP_DigestInit_ex(ctx, EVP_sha512(), NULL);
+	if(status == 0) {
+		ERR_print_errors_fp(stderr);
+		EVP_MD_CTX_destroy(ctx);
+		return NULL;
 	}
 
-	fclose(ofp);
-	return 0;
+	//produce digest for the given data
+	status = EVP_SignUpdate(ctx, data, length);
+	if(status == 0) {
+		ERR_print_errors_fp(stderr);
+		EVP_MD_CTX_destroy(ctx);
+		return NULL;
+	}
+
+	//allocate space for the signature
+	unsigned char *signature = malloc(EVP_PKEY_size(privKey));
+	if(signature == NULL) {
+		fprintf(stderr, "malloc() failed in signData()\n");
+		exit(EXIT_FAILURE);
+	}
+
+	//sign the digest
+	status = EVP_SignFinal(ctx, signature, sigLength, privKey);
+	if(status == 0) {
+		free(signature);
+		EVP_MD_CTX_destroy(ctx);
+		return NULL;
+	}
+
+	//cleanup digest context and return
+	EVP_MD_CTX_destroy(ctx);
+
+	return signature;
 }
 
-int verifyFile(char *filename, char *decryptedFilename, RSA *publicKey) {
-	FILE *file = fopen(filename, "rb");
-	if(file == NULL) {
-		perror("verifyFile");
+/* Verify a block of data by computing a digest, and comparing
+ * it with the signed digest in the given signature.
+ * Return 1 if valid, 0 if invalid and -1 on error. */
+int verifyData(void *data, int length, unsigned char *signature, unsigned int sigLength, EVP_PKEY *pubKey) {
+	//initialise the digest context
+	EVP_MD_CTX *ctx = EVP_MD_CTX_create();
+	if(ctx == NULL) {
+		ERR_print_errors_fp(stderr);
 		return -1;
 	}
 
-	unsigned char bytes[MAX_FILE_SIZE];
-	fseek(file, 0, SEEK_END);
-	long fileSize = ftell(file);
-	rewind(file);
-
-	int numRead = fread(bytes, 1, fileSize, file);
-	if(numRead != fileSize) {
-		perror("verifyFile");
-		fclose(file);
-		return -2;
-	}
-	fclose(file);
-
-	//might be a bit biffer?
-	unsigned char decrypted[MAX_FILE_SIZE];
-	int length = RSA_public_decrypt(fileSize, bytes, decrypted, publicKey, RSA_PKCS1_PADDING);
-	
-	//write it out
-	FILE *ofp = fopen(decryptedFilename, "wb");
-	if(ofp == NULL) {
-		perror("verifyFile");
-		return -3;
-	}
-
-	int numWritten = fwrite(decrypted, 1, length, ofp);
-	if(numWritten != length) {
-		perror("verifyFile");
-		return -4;
-	}
-
-	fclose(ofp);
-	return 0;
-}
-
-int encryptFile(char *filename, char *encryptedFilename, RSA *publicKey) {
-	FILE *file = fopen(filename, "rb");
-	if(file == NULL) {
-		perror("encryptFile");
+	//select SHA512 as the digest to use
+	int status = EVP_VerifyInit_ex(ctx, EVP_sha512(), NULL);
+	if(status == 0) {
+		ERR_print_errors_fp(stderr);
+		EVP_MD_CTX_destroy(ctx);
 		return -1;
 	}
 
-	unsigned char bytes[MAX_FILE_SIZE];
-	fseek(file, 0, SEEK_END);
-	long fileSize = ftell(file);
-	rewind(file);
-
-	int numRead = fread(bytes, 1, fileSize, file);
-	if(numRead != fileSize) {
-		perror("encryptFile");
-		fclose(file);
-		return -2;
-	}
-	fclose(file);
-
-	unsigned char encrypted[MAX_FILE_SIZE];
-	int length = RSA_public_encrypt(fileSize, bytes, encrypted, publicKey, RSA_PKCS1_PADDING);
-	
-	//write it out
-	FILE *ofp = fopen(encryptedFilename, "wb");
-	if(ofp == NULL) {
-		perror("encryptFile");
-		return -3;
-	}
-
-	int numWritten = fwrite(encrypted, 1, length, ofp);
-	if(numWritten != length) {
-		perror("encryptFile");
-		return -4;
-	}
-
-	fclose(ofp);
-	return 0;
-}
-
-int decryptFile(char *filename, char *decryptedFilename, RSA *privateKey) {
-	FILE *file = fopen(filename, "rb");
-	if(file == NULL) {
-		perror("decryptFile");
+	//produce digest for the given data
+	status = EVP_VerifyUpdate(ctx, data, length);
+	if(status == 0) {
+		ERR_print_errors_fp(stderr);
+		EVP_MD_CTX_destroy(ctx);
 		return -1;
 	}
 
-	unsigned char bytes[MAX_FILE_SIZE];
-	fseek(file, 0, SEEK_END);
-	long fileSize = ftell(file);
-	rewind(file);
-
-	int numRead = fread(bytes, 1, fileSize, file);
-	if(numRead != fileSize) {
-		perror("decryptFile");
-		fclose(file);
-		return -2;
+	//verify the digest against the provided signature
+	int match = EVP_VerifyFinal(ctx, signature, sigLength, pubKey);
+	if(status == -1) {
+		ERR_print_errors_fp(stderr);
+		EVP_MD_CTX_destroy(ctx);
+		return -1;
 	}
-	fclose(file);
 
-	//might be a bit biffer?
-	unsigned char decrypted[MAX_FILE_SIZE];
-	int length = RSA_private_decrypt(fileSize, bytes, decrypted, privateKey, RSA_PKCS1_PADDING);
+	//cleanup digest context and return
+	EVP_MD_CTX_destroy(ctx);
+	return match;
+}
+
+/* Encrypte the given block of data using the given key and initialisation vector.
+ * Return the results as a block in memory, storing the lengh in outLength */
+char *encryptData(char *input, unsigned int inLength, unsigned int *outLength,  unsigned char *key, unsigned char *iv) {
+	EVP_CIPHER_CTX context;	
+	EVP_CIPHER_CTX_init(&context);
+	EVP_CIPHER_CTX *ctx = &context;
+
+	int status = EVP_EncryptInit(ctx, EVP_aes_256_cbc(), key, iv);
+	if(status == 0) {
+		ERR_print_errors_fp(stderr);
+		return NULL;
+	}
+
+	//allocate memory for the encrypted output
+	unsigned int maxOutputLength = inLength + EVP_CIPHER_CTX_block_size(ctx);
+	printf("Max Output Length = %d\n", maxOutputLength);
+	char *output = malloc(maxOutputLength);
+	if(output == NULL) {
+		fprintf(stderr, "malloc() failed in encryptData()\n");
+		exit(EXIT_FAILURE);
+	}
+
+	//encrypt the data
+	status = EVP_EncryptUpdate(ctx, output, outLength, input, inLength);
+	if(status == 0) {
+		ERR_print_errors_fp(stderr);
+		free(output);
+		return NULL;
+	}
+
+	//finalise encryption
+	unsigned int lastBit = 0;
+	status = EVP_EncryptFinal_ex(ctx, output + *outLength, &lastBit);
+	if(status == 0) {
+		ERR_print_errors_fp(stderr);
+		free(output);
+		return NULL;
+	}
+
+	*outLength += lastBit;
+
+	//cleanup and return
+	EVP_CIPHER_CTX_cleanup(ctx);
+	return output;
+}
+
+char *decryptData(char *input, unsigned int inLength, unsigned int *outLength, char *key, char *iv) {
+	EVP_CIPHER_CTX context;	
+	EVP_CIPHER_CTX_init(&context);
+	EVP_CIPHER_CTX *ctx = &context;
+
+	int status = EVP_DecryptInit(ctx, EVP_aes_256_cbc(), key, iv);
+	if(status == 0) {
+		ERR_print_errors_fp(stderr);
+		return NULL;
+	}
+
+	unsigned int maxOutputLength = inLength + EVP_CIPHER_CTX_block_size(ctx);
+	char *output = malloc(maxOutputLength);
+	if(output == NULL) {
+		fprintf(stderr, "malloc() failed in decryptData()\n");
+		exit(EXIT_FAILURE);
+	}
+
+	//decrypt the data
+	status = EVP_DecryptUpdate(ctx, output, outLength, input, inLength);
+	if(status == 0) {
+		ERR_print_errors_fp(stderr);
+		free(output);
+		return NULL;
+	}
 	
-	//write it out
-	FILE *ofp = fopen(decryptedFilename, "wb");
-	if(ofp == NULL) {
-		perror("decryptFile");
-		return -3;
+	unsigned int lastBit = 0;
+	status = EVP_DecryptFinal_ex(ctx, output + *outLength, &lastBit);
+	if(status == 0) {
+		ERR_print_errors_fp(stderr);
+		free(output);
+		return NULL;
 	}
 
-	int numWritten = fwrite(decrypted, 1, length, ofp);
-	if(numWritten != length) {
-		perror("decryptFile");
-		return -4;
-	}
+	*outLength += lastBit;
 
-	fclose(ofp);
-	return 0;
+	//cleanup and return
+	EVP_CIPHER_CTX_cleanup(ctx);
+	return output;
 }
 
 int calculateMD5(char *filename, unsigned char *hash) {
@@ -231,7 +256,7 @@ int calculateMD5(char *filename, unsigned char *hash) {
 
 /* Load an RSA structure with the contents of the given file,
  * using the giving function to perform loading. */
-RSA *loadKey(char *keyFilename, RSA *(*keyReader)(FILE *, RSA **, pem_password_cb *, void *) ) {
+EVP_PKEY *loadKey(char *keyFilename, EVP_PKEY *(*keyReader)(FILE *, EVP_PKEY **, pem_password_cb *, void *) ) {
 	//open the file and ensure success
 	FILE *keyFile = fopen(keyFilename, "r");
 	if(keyFile == NULL) {
@@ -240,15 +265,15 @@ RSA *loadKey(char *keyFilename, RSA *(*keyReader)(FILE *, RSA **, pem_password_c
 	}
 
 	//allocate the RSA structure, then load it from file 
-	RSA *key = RSA_new();
+	EVP_PKEY *key = EVP_PKEY_new();
 	if(key != NULL) {
 		key = keyReader(keyFile, &key, NULL, NULL);
 	}
 
-	//catch failures of RSA_new() or keyReader()
+	//catch failures of EVP_PKEY_new() or keyReader()
 	if(key == NULL) {
 		ERR_print_errors_fp(stderr);
-		RSA_free(key);
+		EVP_PKEY_free(key);
 	}
 
 	fclose(keyFile);
@@ -256,23 +281,37 @@ RSA *loadKey(char *keyFilename, RSA *(*keyReader)(FILE *, RSA **, pem_password_c
 }
 
 /* Load a private key from the given file into an RSA structure */
-RSA *loadPrivateKey(char *filename) {
-	return loadKey(filename, &PEM_read_RSAPrivateKey);
+EVP_PKEY *loadPrivateKey(char *filename) {
+	return loadKey(filename, &PEM_read_PrivateKey);
 }
 
 /* Load a public key from the given file into an RSA structure */
-RSA *loadPublicKey(char *filename) {
-	return loadKey(filename, &PEM_read_RSA_PUBKEY);
+EVP_PKEY *loadPublicKey(char *filename) {
+	return loadKey(filename, &PEM_read_PUBKEY);
 }
 
-/*
 int main(int argc, char **argv) {
-	int filesize;
-	unsigned char *file = loadFile(argv[1], &filesize);
-	for(int i=0; i<filesize; ++i) {
-		putchar(file[i]);	
+	int fileSize;
+	unsigned char *file = loadFile(argv[1], &fileSize);
+
+	char key[32];
+	char iv[32];
+	RAND_bytes(key, 32);
+	RAND_bytes(iv, 32);
+
+	int outLength;
+	char *output = encryptData(file, fileSize, &outLength, key, iv);
+	if(output == NULL) {
+		printf("FAIL\n");
+	}
+
+	int decryptedSize = 0;
+	char *decrypted = decryptData(output, outLength, &decryptedSize, key, iv);
+	for(int i=0; i<decryptedSize; ++i) {
+		putchar(decrypted[i]);
 	}
 	free(file);
+	free(output);
+	free(decrypted);
 	return 0;
 }
-*/

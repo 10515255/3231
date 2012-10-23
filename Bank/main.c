@@ -8,38 +8,14 @@
 
 #define MAX_FILE_SIZE 1024
 
-RSA *privateKey;
-RSA *publicKey;
+EVP_PKEY *privateKey;
+EVP_PKEY *publicKey;
 
 int loadKeys(char *privateFilename, char *publicFilename) {
-	FILE *privateFile = fopen(privateFilename, "r");
-	if(privateFile == NULL) {
-		perror("loadKeys");
-		return -1;
-	}
-	privateKey = RSA_new();
-	RSA *result = PEM_read_RSAPrivateKey(privateFile, &privateKey, NULL, NULL);
-	if(result == NULL) {
-		ERR_print_errors_fp(stderr);
-		fclose(privateFile);
-		return -1;
-	}
-	fclose(privateFile);
+	privateKey = loadPrivateKey(privateFileName);	
+	publicKey = loadPublicKey(publicFilename);
 
-	FILE *publicFile = fopen(publicFilename, "r");
-	if(publicFile == NULL) {
-		perror("loadKeys");
-		return -1;
-	}
-	publicKey = RSA_new();
-	result = PEM_read_RSA_PUBKEY(publicFile, &publicKey, NULL, NULL);
-	if(result == NULL) {
-		ERR_print_errors_fp(stderr);
-		fclose(publicFile);
-		return -1;
-	}
-	fclose(publicFile);
-
+	if(privateKey == NULL || publicKey == NULL) return -1;
 	return 0;
 }
 

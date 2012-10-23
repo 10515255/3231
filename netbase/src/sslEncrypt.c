@@ -206,15 +206,11 @@ int calculateMD5(char *filename, unsigned char *hash) {
 		perror("calculateMD5");
 		return -1;
 	}
-	printf("1");
-	fflush(stdout);
 
 	unsigned char bytes[MAX_FILE_SIZE];
 	fseek(ifp, 0, SEEK_END);
 	long fileSize = ftell(ifp);
 	rewind(ifp);
-	printf("1");
-	fflush(stdout);
 
 	int numRead = fread(bytes, 1, fileSize, ifp);
 	if(numRead != fileSize) {
@@ -222,16 +218,12 @@ int calculateMD5(char *filename, unsigned char *hash) {
 		fclose(ifp);
 		return -2;
 	}
-	printf("1");
-	fflush(stdout);
 
 	unsigned char *result = MD5(bytes, fileSize, hash);
 	if(result == NULL) {
 		fprintf(stderr, "MD5 failed or something.\n");
 		return -3;
 	}
-	printf("1");
-	fflush(stdout);
 
 	return 0;
 }
@@ -247,7 +239,7 @@ RSA *loadKey(char *keyFilename, RSA *(*keyReader)(FILE *, RSA **, pem_password_c
 		return NULL;
 	}
 
-	//allocate the RSA structure, load it from file 
+	//allocate the RSA structure, then load it from file 
 	RSA *key = RSA_new();
 	if(key != NULL) {
 		key = keyReader(keyFile, &key, NULL, NULL);

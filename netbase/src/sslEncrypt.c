@@ -140,7 +140,7 @@ int verifyData(void *data, int length, unsigned char *signature, unsigned int si
 
 /* Encrypte the given block of data using the given key and initialisation vector.
  * Return the results as a block in memory, storing the lengh in outLength */
-char *encryptData(char *input, unsigned int inLength, unsigned int *outLength,  unsigned char *key, unsigned char *iv) {
+unsigned char *encryptData(unsigned char *input, int inLength, int *outLength,  unsigned char *key, unsigned char *iv) {
 	EVP_CIPHER_CTX context;	
 	EVP_CIPHER_CTX_init(&context);
 	EVP_CIPHER_CTX *ctx = &context;
@@ -154,7 +154,7 @@ char *encryptData(char *input, unsigned int inLength, unsigned int *outLength,  
 	//allocate memory for the encrypted output
 	unsigned int maxOutputLength = inLength + EVP_CIPHER_CTX_block_size(ctx);
 	printf("Max Output Length = %d\n", maxOutputLength);
-	char *output = malloc(maxOutputLength);
+	unsigned char *output = malloc(maxOutputLength);
 	if(output == NULL) {
 		fprintf(stderr, "malloc() failed in encryptData()\n");
 		exit(EXIT_FAILURE);
@@ -169,7 +169,7 @@ char *encryptData(char *input, unsigned int inLength, unsigned int *outLength,  
 	}
 
 	//finalise encryption
-	unsigned int lastBit = 0;
+	int lastBit = 0;
 	status = EVP_EncryptFinal_ex(ctx, output + *outLength, &lastBit);
 	if(status == 0) {
 		ERR_print_errors_fp(stderr);
@@ -184,7 +184,7 @@ char *encryptData(char *input, unsigned int inLength, unsigned int *outLength,  
 	return output;
 }
 
-char *decryptData(char *input, unsigned int inLength, unsigned int *outLength, char *key, char *iv) {
+unsigned char *decryptData(unsigned char *input, int inLength, int *outLength, unsigned char *key, unsigned char *iv) {
 	EVP_CIPHER_CTX context;	
 	EVP_CIPHER_CTX_init(&context);
 	EVP_CIPHER_CTX *ctx = &context;
@@ -196,7 +196,7 @@ char *decryptData(char *input, unsigned int inLength, unsigned int *outLength, c
 	}
 
 	unsigned int maxOutputLength = inLength + EVP_CIPHER_CTX_block_size(ctx);
-	char *output = malloc(maxOutputLength);
+	unsigned char *output = malloc(maxOutputLength);
 	if(output == NULL) {
 		fprintf(stderr, "malloc() failed in decryptData()\n");
 		exit(EXIT_FAILURE);
@@ -210,7 +210,7 @@ char *decryptData(char *input, unsigned int inLength, unsigned int *outLength, c
 		return NULL;
 	}
 	
-	unsigned int lastBit = 0;
+	int lastBit = 0;
 	status = EVP_DecryptFinal_ex(ctx, output + *outLength, &lastBit);
 	if(status == 0) {
 		ERR_print_errors_fp(stderr);
@@ -294,19 +294,19 @@ int main(int argc, char **argv) {
 	int fileSize;
 	unsigned char *file = loadFile(argv[1], &fileSize);
 
-	char key[32];
-	char iv[32];
+	unsigned char key[32];
+	unsigned char iv[32];
 	RAND_bytes(key, 32);
 	RAND_bytes(iv, 32);
 
 	int outLength;
-	char *output = encryptData(file, fileSize, &outLength, key, iv);
+	unsigned char *output = encryptData(file, fileSize, &outLength, key, iv);
 	if(output == NULL) {
 		printf("FAIL\n");
 	}
 
 	int decryptedSize = 0;
-	char *decrypted = decryptData(output, outLength, &decryptedSize, key, iv);
+	unsigned char *decrypted = decryptData(output, outLength, &decryptedSize, key, iv);
 	for(int i=0; i<decryptedSize; ++i) {
 		putchar(decrypted[i]);
 	}

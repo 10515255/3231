@@ -2,7 +2,7 @@
 
 #include <openssl/pem.h>
 
-unsigned char *loadFile(char *filename, int *fileSize);
+unsigned char *loadFile(char *filename, unsigned int *fileSize);
 
 unsigned char *signData(void *data, int length, EVP_PKEY *privKey, unsigned int *sigLength);
 

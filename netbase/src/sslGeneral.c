@@ -1,7 +1,13 @@
 /* Some useful general functions. */
 #include <stdio.h>
 #include <openssl/bio.h>
+#include <openssl/ssl.h>
 #include <openssl/err.h>
+
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include "sslGeneral.h"
 
 /* Initialise OpenSSL for use */
 void initOpenSSL() {

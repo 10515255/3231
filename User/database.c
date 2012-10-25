@@ -1,77 +1,127 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-unsigned char nibbleToHex(unsigned char nibble) {
-	if(0 <= nibble && nibble < 10) return '0' + nibble;
-	if(10 <= nibble && nibble < 16) return 'A' + nibble - 10;
-	else {
-		fprintf(stderr, "Unexpected value passed to nibbleToHex()\n");
-		return 'G';
+#define MAX_LINE_LENGTH 1024 
+
+#include "../netbase/netbase.h"
+
+#include "database.h"
+
+char *dbFilename = "files.db";
+
+int writeRecord(FILE *output, char *filename, unsigned char *hash, unsigned char *key, unsigned char *iv) {
+	//create a lump of size FILENAME_LENGTH
+	char fileLump[FILENAME_LENGTH];
+	memset(fileLump, 0, FILENAME_LENGTH);
+	strncpy(fileLump, filename, sizeof(fileLump));
+
+	int numWritten = fwrite(fileLump, 1, FILENAME_LENGTH, output);
+	if(numWritten != FILENAME_LENGTH) {
+		perror("writeRecord");
+		return -1;
 	}
+
+	numWritten = fwrite(hash, 1, HASH_LENGTH, output);
+	if(numWritten != HASH_LENGTH) {
+		perror("writeRecord");
+		return -1;
+	}
+
+	numWritten = fwrite(key, 1, KEY_LENGTH, output);
+	if(numWritten != KEY_LENGTH) {
+		perror("writeRecord");
+		return -1;
+	}
+
+	numWritten = fwrite(iv, 1, KEY_LENGTH, output);
+	if(numWritten != KEY_LENGTH) {
+		perror("writeRecord");
+		return -1;
+	}
+	
+	return 0;
 }
 
-unsigned char hexToNibble(unsigned char hex) {
-	if('0' <= hex && hex <= '9') return hex - '0';
-	if('A' <= hex && hex <= 'F') return hex - 'A' + 10;
-	else {
-		fprintf(stderr, "Unexpected value passed to hexToNibble()\n");
-		return '0';
-	}
-}
-unsigned char *bytesToHex(unsigned char *bytes, int length) {
-	unsigned char *hex = malloc(length*2);
-	if(hex == NULL) {
-		fprintf(stderr, "malloc() failed in convertToHex()\n");
-		exit(EXIT_FAILURE);
-	}
-
-	for(int i=0; i < length; ++i) {
-		unsigned char c = bytes[i];	
-		unsigned char lower = c & 0x0f;
-		unsigned char upper = (c >> 4) & 0x0f;
-		hex[2*i] = nibbleToHex(upper);
-		hex[2*i+1] = nibbleToHex(lower);
-	}
-
-	return hex;
-}
-
-unsigned char *hexToBytes(unsigned char *hex, int length) {
-	if(length % 2 != 0) {
-		fprintf(stderr, "bytesFromHex() passed odd number of hex chars.\n");
+FILERECORD *readRecord(FILE *input) {
+	static FILERECORD record;
+	int numRead = fread(record.filename, 1, FILENAME_LENGTH, input);
+	if(numRead != FILENAME_LENGTH) {
+		perror("readRecord");
 		return NULL;
 	}
-	int numBytes = length / 2;
-	unsigned char *bytes = malloc(numBytes);
-	if(bytes == NULL) {
-		fprintf(stderr, "malloc() failed in bytesFromHex()\n");
-		exit(EXIT_FAILURE);
+
+	numRead = fread(record.hash, 1, HASH_LENGTH, input);
+	if(numRead != HASH_LENGTH) {
+		perror("readRecord");
+		return NULL;
 	}
 
-	for(int i=0; i < numBytes; ++i) {
-		//byte = lower + upper << 4
-		unsigned char upper = hexToNibble(hex[2*i]);
-		unsigned char lower = hexToNibble(hex[2*i+1]);
-		bytes[i] = lower | (upper << 4); 
+	numRead = fread(record.key, 1, KEY_LENGTH, input);
+	if(numRead != KEY_LENGTH) {
+		perror("readRecord");
+		return NULL;
 	}
 
-	return bytes;
+	numRead = fread(record.iv, 1, KEY_LENGTH, input);
+	if(numRead != KEY_LENGTH) {
+		perror("readRecord");
+		return NULL;
+	}
+
+	return &record;
 }
 
-int main() {
-	unsigned char *c = "0F00FFA9";
-	char *hex = hexToBytes(c, 8);
-	for(int i=0; i<4; ++i) {
-		putchar(hex[i]);
+FILERECORD *getRecord(char *targetFilename) {
+	FILE *db = fopen(dbFilename, "rb");
+	if(db == NULL) {
+		perror("getRecord");
+		return NULL;
 	}
+
+	FILERECORD *record = NULL;
+	while((record = readRecord(db)) != NULL) {
+		if(strcmp(record->filename, targetFilename) == 0) {
+			fclose(db);
+			return record; 
+		}
+	}
+	fclose(db);
+	fprintf(stderr, "getRecord() couldn't find %s\n", targetFilename);
+	return NULL;
+}
+
+
+int main(int argc, char **argv) {
+	char *filename = "test.txt";
+	char *hash = "12948AF6374D4321";
+	char *key = randomBytes(KEY_LENGTH);
+	char *iv = randomBytes(KEY_LENGTH);
+
+	FILE *output = fopen(dbFilename, "wb");
+	if(output == NULL) {
+		perror(NULL);
+		return -1;
+	}
+
+	writeRecord(output, filename, hash, key, iv);
+	filename = "other.txt";
+	hash = "1111111111111111";
+	writeRecord(output, filename, hash, key, iv);
+	fclose(output);
+
+	output = fopen(dbFilename, "rb");
+	if(output == NULL) {
+		perror(NULL);
+		return -1;
+	}
+
+	FILERECORD *r = getRecord("other.txt");
+
+	printf("%s\n", r->filename);
+	for(int i=0; i<HASH_LENGTH; ++i) putchar(r->hash[i]);
 	putchar('\n');
 
-	char *bytes = bytesToHex(hex, 4);
-	for(int i=0; i<8; ++i) {
-		putchar(bytes[i]);
-	}
-
-	free(bytes);
-	free(hex);
+	free(key);
+	free(iv);
 }
-

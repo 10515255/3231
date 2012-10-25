@@ -17,7 +17,7 @@
 
 /* Load the full contents of a file, into a buffer in memory.
  * Returns the buffer, and fills the size into the argument int.*/
-unsigned char *loadFile(char *filename, int *fileSize) {
+unsigned char *loadFile(char *filename, unsigned int *fileSize) {
 	*fileSize = sizeOfFile(filename);
 
 	FILE *ifp = fopen(filename, "rb");
@@ -279,6 +279,7 @@ unsigned char *randomBytes(int n) {
 	return output;
 }
 
+/*
 int main(int argc, char **argv) {
 	int fileSize;
 	unsigned char *file = loadFile(argv[1], &fileSize);
@@ -306,3 +307,4 @@ int main(int argc, char **argv) {
 	free(decrypted);
 	return 0;
 }
+*/

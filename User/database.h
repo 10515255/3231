@@ -10,3 +10,10 @@ typedef struct {
 	unsigned char key[KEY_LENGTH];
 	unsigned char iv[KEY_LENGTH];
 } FILERECORD;
+
+/* Add a record of the given file to the database.  If it already exits in the databse
+ * it's information will be updated */
+int addRecord(char *filename, unsigned char *hash, unsigned char *key, unsigned char *iv);
+
+/* Get a pointer to the record in the database with the given filename */
+int getRecord(char *targetFilename);

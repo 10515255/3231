@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../netbase/netbase.h"
+#include "../../netbase/netbase.h"
 
 /* Just read lines from stdin, the send them in a packet to the server. */
 int handleServer(BIO *server) {
@@ -37,17 +37,20 @@ int handleServer(BIO *server) {
 
 /* Check sufficient arguments, prepare OpenSSL and kickstart the connection. */
 int main(int argc, char **argv) {
-	if(argc < 3) {
+	if(argc < 6) {
 		fprintf(stderr, "Expected a hostname and port.\n");
 		exit(EXIT_FAILURE);
 	}
 
 	char *hostname = argv[1];
 	char *port = argv[2];
+	char *certFile = argv[3];
+	char *privKeyFile = argv[4];
+	char *trustStore = argv[5];
 
 	//connect to the server, then run handleServer() on the resulting connection
 	initOpenSSL();
-	int status = connectToServer(hostname, port, &handleServer);
+	int status = connectToServer(hostname, port, certFile, privKeyFile, trustStore, &handleServer);
 
 	return status;
 }

@@ -9,6 +9,7 @@ int sendAll(BIO *conn, char *buffer, int length);
 int readAll(BIO *conn, char *buffer, int length);
 
 int readInt(BIO *conn);
+
 int sendInt(BIO *conn, unsigned int n);
 
 /* Send a simple packet */

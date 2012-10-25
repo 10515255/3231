@@ -5,7 +5,7 @@
 #include <sys/types.h>
 #include <dirent.h>
 
-#include "../netbase/netbase.h"
+#include "../../netbase/netbase.h"
 
 #define READ_BUF_SIZE 1024 
 #define MAX_LS_OUTPUT 1024
@@ -98,19 +98,20 @@ int listenToClient(BIO *client) {
 
 int main(int argc, char **argv) {
 	//grab any arguments char *hostname = NULL;
-	if(argc < 2 || argc > 3) {
-		printf("Usage:\n");
-		printf(">server hostname port\n");
-		printf(">server port\n");
+	if(argc < 6) {
+		printf(">server hostname port cert privkey\n");
 		exit(EXIT_FAILURE);
 	}
 
-	char *hostname = (argc == 3) ? argv[1] : NULL;
-	char *port = (argc == 3) ? argv[2] : argv[1];
+	char *hostname = argv[1];
+	char *port = argv[2];
+	char *certFile = argv[3];
+	char *privKeyFile = argv[4];
+	char *trustStore = argv[5];
 
 	//start the server listening
 	initOpenSSL();
-	runServer(hostname, port, &listenToClient);
+	runServer(hostname, port, certFile, privKeyFile, trustStore, &listenToClient);
 
 	exit(EXIT_SUCCESS);
 

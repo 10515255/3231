@@ -12,8 +12,9 @@
 
 #define LIST_FILES_CODE 1
 
-/* Write filenames from the current directory to the given
- * string, each on a line of their own. */
+/* Helper function for clientListFiles().  Write the filename
+ * of all items in a directory to the given string, separated
+ * by newlines. */
 int listFiles(char *buffer, int maxLength) {
 	DIR *dir = opendir("./");
 	if(dir == NULL) return -1;
@@ -35,6 +36,11 @@ int listFiles(char *buffer, int maxLength) {
 }
 
 
+/*
+ * LIST FILES : CLIENT SIDE
+ *
+ * Handle the client side of the list files funcitonality
+ */ 
 int clientListFiles(BIO *conn) {
 	//send the code which causes the server to call serverListFiles() */
 	if(writeInt(conn, LIST_FILES_CODE) == -1) return -1;
@@ -50,6 +56,11 @@ int clientListFiles(BIO *conn) {
 	return 1;
 }
 
+/*
+ * LIST FILES : SERVER SIDE
+ *
+ * Handle the server side of the list files funcitonality
+ */ 
 int serverListFiles(BIO *conn) {
 	//send the client a single string listing all files
 	//in the folder

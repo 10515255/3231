@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "../netbase/netbase.h"
+#include "cloudProtocol.h"
 
 #define BUFFER_SIZE 1024 
 
@@ -12,24 +13,28 @@ int storeFile(BIO *client, char *command) {
 */
 
 int handleClient(BIO *client) {	
-	char buffer[BUFFER_SIZE];
-	while(1) {
-		int status = readString(client, buffer, sizeof(buffer));
-		if(status < 1) {
-			printf("readString() faile in handleClient()\n");
-			return -1;
-		}
-		printf("Client: %s", buffer);
 
-		status = writeString(client, "hello");
-		if(status < 1) {
-			printf("sendString() failed in handleCLient\n");
-			return -1;
+	/* Accept commands codes from the client program to determine which 
+	 * functionality of the protocol is being initiate. */
+	while(1) {
+		unsigned int commandCode = readInt(client);
+		printf("Client: %d\n", commandCode);
+
+		int finished = 0;
+		switch(commandCode) {
+			case LIST_FILES_CODE:
+				serverListFiles(client);
+				break;
+			default :
+				printf("Unrecognized command code %d\n");
+				finished = 1;
+				break;
 		}
+		if(finished) break;
 	}
 
 
-	return 0;
+	return 1;
 }
 
 int main(int argc, char **argv) {

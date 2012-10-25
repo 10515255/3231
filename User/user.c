@@ -4,6 +4,7 @@
 
 #include "../netbase/netbase.h"
 #include "database.h"
+#include "../Cloud/cloudProtocol.h"
 
 #define MAX_COMMAND_SIZE 512 
 
@@ -95,21 +96,26 @@ int uploadFile(BIO *server, char *command) {
 int handleServer(BIO *server) {
 	char buffer[MAX_COMMAND_SIZE];
 	while(fgets(buffer, sizeof(buffer), stdin) != NULL) {
+		stripNewline(buffer);
+
 		//process the command	
 		if(strncmp(buffer, "ls", 2) == 0) {
-			int status = listFiles(server);
-			if(status < 0) {
-				printf("listFiles() failed in handleServer()\n");
-			}
-		}
-		if(strncmp(buffer, "upload ", 7) == 0) {
-			stripNewline(buffer);
-			uploadFile(server, buffer + 7);
+			printf("LS HIT\n");
+			writeInt(server, LIST_FILES_CODE);
 		}
 		else {
 			printf("Invalid Command\n");
-			writeString(server, buffer);
+			writeInt(server, 0);
+			continue;
 		}
+
+		/*
+		int status = readString(server, buffer, sizeof(buffer));
+		if(status < 1) {
+			printf("Error by readString() in handleServer()\n");
+			return -1;
+		}
+		*/
 	}
 
 	return 0;

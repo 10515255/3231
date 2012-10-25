@@ -2,7 +2,7 @@ PROJ = client
 
 NETBASE = ../netbase/libnetbase.a
 LINKNETBASE = -L"../netbase" -lnetbase
-GCC = gcc -std=c99 -Wall -Werror -pedantic
+GCC = gcc -g -std=c99 -Wall -Werror -pedantic
 
 OBJ = user.o database.o
 HEADERS = database.h

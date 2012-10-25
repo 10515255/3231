@@ -166,8 +166,7 @@ int writeFile(BIO *conn, FILE *file, char *filename) {
 	return 1;
 }
 
-int readInt(BIO *conn) {
-
+unsigned int readInt(BIO *conn) {
 	uint32_t number = -1;
 	int status = readAll(conn, (char *)number, sizeof(uint32_t));
 	if(status < 1) {
@@ -179,7 +178,6 @@ int readInt(BIO *conn) {
 }
 
 int writeInt(BIO *conn, unsigned int n) {
-
 	uint32_t number = htonl(n);
 	int status = writeAll(conn, (char *)number, sizeof(uint32_t));
 	if(status < 1) return status;	

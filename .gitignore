@@ -6,3 +6,4 @@ netbase/netbase.h
 client
 server
 test
+cloudServer

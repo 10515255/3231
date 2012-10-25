@@ -12,7 +12,7 @@ int readAll(BIO *conn, char *buffer, int length);
 int readInt(BIO *conn);
 
 /* Send a 4 byte unsigned int over the connection */
-int writeInt(BIO *conn, unsigned int n);
+int writeInt(BIO *conn, int n);
 
 /* Send a simple packet */
 int writePacket(BIO *conn, char *buffer, int length);

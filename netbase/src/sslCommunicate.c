@@ -23,7 +23,7 @@
 
 /* Make repeated calls to BIO_write until our entire
 message has been sent. */
-int sendAll(BIO *conn, char *buffer, int length) {
+int writeAll(BIO *conn, char *buffer, int length) {
 	int numLeft = length;
 	int totalSent = 0;	
 
@@ -63,11 +63,11 @@ int readAll(BIO *conn, char *buffer, int length) {
 int writePacket(BIO *conn, char *buffer, int length) {
 	//send the header (4 byte int in network byte order)
 	uint32_t numBytes = htonl(length);
-	int status = sendAll(conn, (char *)&numBytes, sizeof(uint32_t));
+	int status = writeAll(conn, (char *)&numBytes, sizeof(uint32_t));
 	if(status < 1) return status;	
 
 	//send the body (contents of buffer)
-	status = sendAll(conn, buffer, length);
+	status = writeAll(conn, buffer, length);
 	if(status < 1) return status;
 	
 	return length;
@@ -111,19 +111,19 @@ int readString(BIO *conn, char *buffer, int maxLength) {
 /* Send a file across the network. The filename argument
  * will be sent to indicate to the other side what it should
  * be saved as. */
-int sendFile(BIO *conn, FILE *file, char *filename) {
+int writeFile(BIO *conn, FILE *file, char *filename) {
 	if(file == NULL || filename == NULL) return -1;
 
 	//determine the length of the file
 	struct stat fileDetails;
 	int fd = fileno(file);
 	if(fd < 0) {
-		perror("fileno() in sendFile():");
+		perror("fileno() in writeFile():");
 		return -1;
 	}
 	int success = fstat(fd, &fileDetails);
 	if(success < 0) {
-		perror("sendFile(): ");
+		perror("writeFile(): ");
 		return -1;
 	}	
 
@@ -138,7 +138,7 @@ int sendFile(BIO *conn, FILE *file, char *filename) {
 	if(status < 1) return status;
 
 	//send the file length in 4 bytes
-	status = sendAll(conn, (char *)&netSize, sizeof(uint32_t));
+	status = writeAll(conn, (char *)&netSize, sizeof(uint32_t));
 	if(status < 1) return status;	
 	/* Now transfer the file */
 	rewind(file);
@@ -150,7 +150,7 @@ int sendFile(BIO *conn, FILE *file, char *filename) {
 		if(numRead == 0) break;
 
 		//send that chunk over the network
-		int status = sendAll(conn, fileBuffer, numRead);
+		int status = writeAll(conn, fileBuffer, numRead);
 		if(status < 1) return status;
 
 		fileSize -= numRead;
@@ -159,7 +159,7 @@ int sendFile(BIO *conn, FILE *file, char *filename) {
 	printf("File transfer over\n");
 
 	if(fileSize != 0) {
-		fprintf(stderr, "sendFile(): fileSize non-zero after sending. Incomplete??\n");
+		fprintf(stderr, "writeFile(): fileSize non-zero after sending. Incomplete??\n");
 		return -1;
 	}
 
@@ -178,10 +178,10 @@ int readInt(BIO *conn) {
 	return number;
 }
 
-int sendInt(BIO *conn, unsigned int n) {
+int writeInt(BIO *conn, unsigned int n) {
 
 	uint32_t number = htonl(n);
-	int status = sendAll(conn, (char *)number, sizeof(uint32_t));
+	int status = writeAll(conn, (char *)number, sizeof(uint32_t));
 	if(status < 1) return status;	
 
 	return 1;

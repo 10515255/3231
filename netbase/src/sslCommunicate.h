@@ -3,14 +3,16 @@
 #include <openssl/bio.h>
 
 /* Write until we have sent all <length> bytes. */
-int sendAll(BIO *conn, char *buffer, int length);
+int writeAll(BIO *conn, char *buffer, int length);
 
 /* Read until we have received <length> bytes. */
 int readAll(BIO *conn, char *buffer, int length);
 
+/* Read a 4 bytes unsigned int from the connection */
 int readInt(BIO *conn);
 
-int sendInt(BIO *conn, unsigned int n);
+/* Send a 4 byte unsigned int over the connection */
+int writeInt(BIO *conn, unsigned int n);
 
 /* Send a simple packet */
 int writePacket(BIO *conn, char *buffer, int length);
@@ -30,4 +32,4 @@ int recvFile(BIO *conn);
 /* Send a file across the network. The filename argument
  * will be sent to indicate to the other side what it should
  * be saved as. */
-int sendFile(BIO *conn, FILE *file, char *filename);
+int writeFile(BIO *conn, FILE *file, char *filename);

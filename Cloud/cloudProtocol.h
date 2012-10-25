@@ -1,5 +1,2 @@
-#define LIST_FILES_CODE 1
-
+int respondToCommand(BIO *conn, int code);
 int clientListFiles(BIO *conn);
-
-int serverListFiles(BIO *conn);

@@ -8,10 +8,10 @@ int writeAll(BIO *conn, char *buffer, int length);
 /* Read until we have received <length> bytes. */
 int readAll(BIO *conn, char *buffer, int length);
 
-/* Read a 4 bytes unsigned int from the connection */
+/* Read a 4 bytes int from the connection */
 int readInt(BIO *conn);
 
-/* Send a 4 byte unsigned int over the connection */
+/* Send a 4 byte int over the connection */
 int writeInt(BIO *conn, int n);
 
 /* Send a simple packet */

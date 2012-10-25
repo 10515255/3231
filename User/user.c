@@ -12,22 +12,6 @@ void stripNewline(char *string) {
 	string[strlen(string)-1] = '\0';
 }
 
-int listFiles(BIO *server) {
-	int status = writeString(server, "ls");
-	if(status < 1) {
-		printf("writeString() faild in listFiles()\n");
-	}
-
-	char response[1024];
-	status = readString(server, response, sizeof(response));
-	if(status < 1) {
-		printf("readString() failed in listFiles()\n");
-	}
-
-	printf("%s\n", response);
-	return 0;
-}
-
 int uploadFile(BIO *server, char *command) {
 	char *filename = command;
 	unsigned int fileSize = sizeOfFile(filename);
@@ -101,7 +85,8 @@ int handleServer(BIO *server) {
 		//process the command	
 		if(strncmp(buffer, "ls", 2) == 0) {
 			printf("LS HIT\n");
-			writeInt(server, LIST_FILES_CODE);
+			int status = clientListFiles(server);
+			printf("%d\n", status);
 		}
 		else {
 			printf("Invalid Command\n");

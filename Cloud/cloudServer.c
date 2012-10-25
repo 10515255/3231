@@ -13,28 +13,18 @@ int storeFile(BIO *client, char *command) {
 */
 
 int handleClient(BIO *client) {	
-
 	/* Accept commands codes from the client program to determine which 
 	 * functionality of the protocol is being initiate. */
 	while(1) {
-		unsigned int commandCode = readInt(client);
+		int commandCode = readInt(client);
+		if(commandCode == -1) return -1;
 		printf("Client: %d\n", commandCode);
 
-		int finished = 0;
-		switch(commandCode) {
-			case LIST_FILES_CODE:
-				serverListFiles(client);
-				break;
-			default :
-				printf("Unrecognized command code %d\n");
-				finished = 1;
-				break;
-		}
-		if(finished) break;
+		if(respondToCommand(client, commandCode) == -1) return -1;
 	}
 
 
-	return 1;
+	return 0;
 }
 
 int main(int argc, char **argv) {

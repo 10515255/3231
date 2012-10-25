@@ -4,17 +4,20 @@ NETBASE = ../netbase/libnetbase.a
 LINKNETBASE = -L"../netbase" -lnetbase
 GCC = gcc -g -std=c99 -Wall -Werror -pedantic
 
-OBJ = user.o database.o
+OBJ = user.o database.o ../Cloud/cloudProtocol.o
 HEADERS = database.h
 
 $(PROJ) : $(OBJ) $(HEADERS) $(NETBASE)
 	$(GCC) -o $(PROJ) $(OBJ) $(LINKNETBASE) -lssl
 
-user.o : user.c $(NETBASE)
+user.o : user.c ../Cloud/cloudProtocol.h 
 	$(GCC) -c user.c -lssl
 
 database.o : database.c  
 	$(GCC) -c database.c 
+
+../Cloud/cloudProtocol.o : ../Cloud/cloudProtocol.c ../Cloud/cloudProtocol.h
+	$(GCC) -o ../Cloud/cloudProtocol.o -c ../Cloud/cloudProtocol.c
 
 #jump to the netbase folder, and run the makefile located there to build the netbase library
 $(NETBASE) :

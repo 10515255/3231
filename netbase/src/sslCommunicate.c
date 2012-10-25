@@ -166,9 +166,9 @@ int writeFile(BIO *conn, FILE *file, char *filename) {
 	return 1;
 }
 
-unsigned int readInt(BIO *conn) {
-	uint32_t number = -1;
-	int status = readAll(conn, (char *)number, sizeof(uint32_t));
+int readInt(BIO *conn) {
+	uint32_t number = 0;
+	int status = readAll(conn, (char *)&number, sizeof(uint32_t));
 	if(status < 1) {
 		fprintf(stderr, "readAll() return %d in readInt()\n", status);
 		return -1;
@@ -177,9 +177,9 @@ unsigned int readInt(BIO *conn) {
 	return number;
 }
 
-int writeInt(BIO *conn, unsigned int n) {
+int writeInt(BIO *conn, int n) {
 	uint32_t number = htonl(n);
-	int status = writeAll(conn, (char *)number, sizeof(uint32_t));
+	int status = writeAll(conn, (char *)&number, sizeof(uint32_t));
 	if(status < 1) return status;	
 
 	return 1;

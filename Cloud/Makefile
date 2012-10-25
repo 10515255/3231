@@ -10,13 +10,13 @@ HEADERS = database.h cloudProtocol.h
 $(PROJ) : $(OBJ) $(HEADERS) $(NETBASE)
 	$(GCC) -o $(PROJ) $(OBJ) $(LINKNETBASE) -lssl
 
-cloudserver.o : cloudserver.c $(NETBASE)
-	$(GCC) -c cloudserver.c -lssl
+cloudServer.o : cloudServer.c cloudProtocol.h
+	$(GCC) -c cloudServer.c -lssl
 
 database.o : database.c  
 	$(GCC) -c database.c 
 
-cloudProtocol.o : cloudProtocol.c $(NETBASE)
+cloudProtocol.o : cloudProtocol.c cloudProtocol.h 
 	$(GCC) -c cloudProtocol.c -lssl
 
 #jump to the netbase folder, and run the makefile located there to build the netbase library

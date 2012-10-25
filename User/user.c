@@ -1,12 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "../netbase/netbase.h"
 #include "database.h"
 
 #define MAX_COMMAND_SIZE 512 
 
-void *stripNewline(char *string) {
+void stripNewline(char *string) {
 	string[strlen(string)-1] = '\0';
 }
 
@@ -51,7 +52,6 @@ int uploadFile(BIO *server, char *command) {
 	unsigned char *iv = randomBytes(32);
 	
 	//load the file
-	int fileSize;
 	unsigned char *file = loadFile(filename, &fileSize);
 	//encrypt the file
 	int cipherLength; 
@@ -70,7 +70,7 @@ int uploadFile(BIO *server, char *command) {
 	}
 	
 	//store these for later
-	writeRecord(filename, hash, key, iv);
+	addRecord(filename, hash, key, iv);
 
 	//send the file
 	status = writePacket(server, filename, strlen(filename));
@@ -78,7 +78,7 @@ int uploadFile(BIO *server, char *command) {
 		fprintf(stderr, "Failed to send filename in uploadFile()\n");
 		return -1;
 	}
-	status = writePacket(server, ciphertext, cipherLength);
+	status = writePacket(server, (char *)ciphertext, cipherLength);
 	if(status < 0) {
 		fprintf(stderr, "Failed to send file in uploadFile()\n");
 		return -1;
@@ -88,6 +88,8 @@ int uploadFile(BIO *server, char *command) {
 	free(key);
 	free(iv);
 	free(ciphertext);
+
+	return 0;
 }
 
 int handleServer(BIO *server) {
@@ -95,7 +97,10 @@ int handleServer(BIO *server) {
 	while(fgets(buffer, sizeof(buffer), stdin) != NULL) {
 		//process the command	
 		if(strncmp(buffer, "ls", 2) == 0) {
-			listFiles(server);
+			int status = listFiles(server);
+			if(status < 0) {
+				printf("listFiles() failed in handleServer()\n");
+			}
 		}
 		if(strncmp(buffer, "upload ", 7) == 0) {
 			stripNewline(buffer);
@@ -103,24 +108,29 @@ int handleServer(BIO *server) {
 		}
 		else {
 			printf("Invalid Command\n");
+			writeString(server, buffer);
 		}
 	}
+
+	return 0;
 }
 
 
 int main(int argc, char **argv) {
-	if(argc < 4) {
+	if(argc < 6) {
 		fprintf(stderr, "Expected a hostname and port.\n");
 		exit(EXIT_FAILURE);
 	}
 
 	char *hostname = argv[1];
 	char *port = argv[2];
-	char *trustStore = argv[3];
+	char *certFile = argv[3];
+	char *privKeyFile = argv[4];
+	char *trustStore = argv[5];
 
 	//connect to the server, then run handleServer() on the resulting connection
 	initOpenSSL();
-	int status = connectToServer(hostname, port, trustStore, &handleServer);
+	int status = connectToServer(hostname, port, certFile, privKeyFile, trustStore, &handleServer);
 
 	return status;
 }

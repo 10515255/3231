@@ -16,4 +16,4 @@ typedef struct {
 int addRecord(char *filename, unsigned char *hash, unsigned char *key, unsigned char *iv);
 
 /* Get a pointer to the record in the database with the given filename */
-int getRecord(char *targetFilename);
+FILERECORD *getRecord(char *targetFilename);

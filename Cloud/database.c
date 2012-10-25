@@ -101,7 +101,6 @@ USER *getUser(int targetID) {
 	}
 
 	//read the file until we find this users line
-	char line[MAX_LINE_LENGTH];
 	USER *user;
 	while( (user = readUser(usersFile)) != NULL ) {
 		if(user->id == targetID) {
@@ -127,6 +126,7 @@ int getBalance(int id) {
 	return -1;
 }
 
+/*
 int main(int argc, char **argv)
 {
 	for(int i=0; i<5; ++i) {
@@ -136,3 +136,4 @@ int main(int argc, char **argv)
 	}
 
 }
+*/

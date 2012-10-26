@@ -17,7 +17,6 @@ typedef struct {
 
 /* The file which acts as a database for customers and their information. */
 char *usersFilename = "users.txt";
-
 char *tempFilename = "temp.tmp";
 
 /* Remove the line in the file which has the given number
@@ -127,8 +126,7 @@ int getBalance(int id) {
 }
 
 /*
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
 	for(int i=0; i<5; ++i) {
 		int x = getBalance(i);
 		if(x != -1)	printf("User %d has %d dollars.\n", i, x);

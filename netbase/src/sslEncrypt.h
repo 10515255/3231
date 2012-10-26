@@ -2,7 +2,7 @@
 
 #include <openssl/pem.h>
 
-unsigned char *loadFile(char *filename, unsigned int *fileSize);
+unsigned char *loadFile(char *filename, int *fileSize);
 
 unsigned char *signData(void *data, int length, EVP_PKEY *privKey, unsigned int *sigLength);
 
@@ -12,7 +12,11 @@ unsigned char *encryptData(unsigned char *input, int inLength, int *outLength,  
 
 unsigned char *decryptData(unsigned char *input, int inLength, int *outLength, unsigned char *key, unsigned char *iv);
 
-int calculateMD5(unsigned char *bytes, int length, unsigned char *hash);
+int encryptFile(char *filename, char *outFile, unsigned char *key, unsigned char *iv);
+
+int decryptFile(char *filename, char *outFile, unsigned char *key, unsigned char *iv);
+
+int calculateMD5(char *filename, unsigned char *hash);
 
 /* Load a private key from file into an EVP_PKEY structure */
 EVP_PKEY *loadPrivateKey(char *filename);

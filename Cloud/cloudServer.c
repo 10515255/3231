@@ -7,12 +7,17 @@
 
 #define BUFFER_SIZE 1024 
 
-/*
-int storeFile(BIO *client, char *command) {
-}
-*/
+#define TRUST_STORE "Certs/1Cert.pem"
+#define SERVER_CERTIFICATE "Certs/cloudCert.pem"
+#define SERVER_PRIVKEY "Certs/cloudPrivateKey.pem"
+
 
 int handleClient(BIO *client) {	
+	//find out who the user is
+	int userid = readInt(client);
+	if(userid == -1) return -1;
+	printf("User %d has connected.\n", userid);
+
 	/* Accept commands codes from the client program to determine which 
 	 * functionality of the protocol is being initiate. */
 	while(1) {
@@ -20,7 +25,7 @@ int handleClient(BIO *client) {
 		if(commandCode == -1) return -1;
 		printf("Client: %d\n", commandCode);
 
-		if(respondToCommand(client, commandCode) == -1) return -1;
+		if(respondToCommand(client, commandCode, userid) == -1) return -1;
 	}
 
 
@@ -28,19 +33,16 @@ int handleClient(BIO *client) {
 }
 
 int main(int argc, char **argv) {
-	if(argc < 6) {
+	if(argc < 3) {
 		fprintf(stderr, "Expected a hostname and port.\n");
 		exit(EXIT_FAILURE);
 	}
 
 	char *hostname = argv[1];
 	char *port = argv[2];
-	char *certFile = argv[3];
-	char *privKeyFile = argv[4];
-	char *trustStore = argv[5];
 
 	initOpenSSL();
-	int status = runServer(hostname, port, certFile, privKeyFile, trustStore, &handleClient);
+	int status = runServer(hostname, port, SERVER_CERTIFICATE, SERVER_PRIVKEY, TRUST_STORE, &handleClient);
 	return status;
 
 }

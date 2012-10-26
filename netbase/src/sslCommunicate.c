@@ -16,10 +16,30 @@
 #include <sys/types.h>
 
 #include "sslGeneral.h"
+#include "sslCommunicate.h"
 
 //reasonable?
 #define MAX_FILENAME_LENGTH 64 
 #define MAX_FILE_SIZE (1024*1024)
+
+int readInt(BIO *conn) {
+	uint32_t number = 0;
+	int status = readAll(conn, (char *)&number, sizeof(uint32_t));
+	if(status < 1) {
+		fprintf(stderr, "readAll() return %d in readInt()\n", status);
+		return -1;
+	}
+	number = ntohl(number);
+	return number;
+}
+
+int writeInt(BIO *conn, int n) {
+	uint32_t number = htonl(n);
+	int status = writeAll(conn, (char *)&number, sizeof(uint32_t));
+	if(status < 1) return status;	
+
+	return 1;
+}
 
 /* Make repeated calls to BIO_write until our entire
 message has been sent. */
@@ -84,6 +104,7 @@ int readPacket(BIO *conn, char *buffer, int maxLength) {
 	if(status < 1) return status;
 
 	int packetLength = ntohl(numBytes);
+	printf("Incoming packet %d bytes\n", packetLength);
 	//ensure buffer has capacity
 	if(packetLength > maxLength) {
 		fprintf(stderr, "readPacket() received a packet longer than the allocated space.\n");
@@ -111,42 +132,28 @@ int readString(BIO *conn, char *buffer, int maxLength) {
 /* Send a file across the network. The filename argument
  * will be sent to indicate to the other side what it should
  * be saved as. */
-int writeFile(BIO *conn, FILE *file, char *filename) {
-	if(file == NULL || filename == NULL) return -1;
-
-	//determine the length of the file
-	struct stat fileDetails;
-	int fd = fileno(file);
-	if(fd < 0) {
-		perror("fileno() in writeFile():");
-		return -1;
-	}
-	int success = fstat(fd, &fileDetails);
-	if(success < 0) {
-		perror("writeFile(): ");
-		return -1;
-	}	
-
-	uint32_t fileSize = fileDetails.st_size;
-	//convert to network byte order
-	uint32_t netSize = htonl(fileSize);
+int writeFile(BIO *conn, char *filename, char *writeName, int fileSize) {
 
 	/* Send a header message with the filename, and length */
 
-	//send the filename first in a simple packet
-	int status = writePacket(conn, filename, strlen(filename));
-	if(status < 1) return status;
-
+	FILE *ifp = fopen(filename, "rb");
+	if(ifp == NULL) {
+		perror("writeFile");
+		writeInt(conn, -1);
+		return 5;
+	}
+	
 	//send the file length in 4 bytes
-	status = writeAll(conn, (char *)&netSize, sizeof(uint32_t));
-	if(status < 1) return status;	
-	/* Now transfer the file */
-	rewind(file);
-	char fileBuffer[BUFSIZ];
+	if(writeInt(conn, fileSize) == -1) return -1;
+	
+	//send the filename first in a simple packet
+	if(writeString(conn, writeName) < 1) return -1;
 
+	/* Now transfer the file */
+	char fileBuffer[BUFSIZ];
 	while(1) {
 		//read a chunk
-		int numRead = fread(fileBuffer, 1, BUFSIZ, file); 
+		int numRead = fread(fileBuffer, 1, BUFSIZ, ifp); 
 		if(numRead == 0) break;
 
 		//send that chunk over the network
@@ -166,52 +173,19 @@ int writeFile(BIO *conn, FILE *file, char *filename) {
 	return 1;
 }
 
-int readInt(BIO *conn) {
-	uint32_t number = 0;
-	int status = readAll(conn, (char *)&number, sizeof(uint32_t));
-	if(status < 1) {
-		fprintf(stderr, "readAll() return %d in readInt()\n", status);
-		return -1;
-	}
-	number = ntohl(number);
-	return number;
-}
-
-int writeInt(BIO *conn, int n) {
-	uint32_t number = htonl(n);
-	int status = writeAll(conn, (char *)&number, sizeof(uint32_t));
-	if(status < 1) return status;	
-
-	return 1;
-}
 
 /* Receive a file over the network, as sent by sendFile() above. */
 int recvFile(BIO *conn) {
+	int numBytes = readInt(conn);
+	if(numBytes == -1) return 5;
+	printf("The file will have %d bytes.\n", numBytes);
+	
 	//the filename will arrive in a simple packet
 	char filename[MAX_FILENAME_LENGTH];
-	int status = readPacket(conn, filename, sizeof(filename));
-	if(status < 1) return status;
-	//null terminate the filename, so we can use it from this array
-	filename[status] = '\0';
+	if(readString(conn, filename, sizeof(filename)) == -1) return -1;
 	printf("Got the filename, %s\n", filename);
 	
-	//read the file length
-	uint32_t numBytes = 0;
-	status = readAll(conn, (char *)&numBytes, sizeof(uint32_t));
-	if(status < 1) {
-		fprintf(stderr, "readAll() return %d in recvFile()\n", status);
-		return status;
-	}
-	numBytes = ntohl(numBytes);
-	printf("The file will have %u bytes.\n", numBytes);
 
-	/* Here we will eventually check to make sure the client has sufficient
-	paid storage for the incoming file.  They will probably wait for us to tell
-	themn whether to send the file or not */
-	if(numBytes > MAX_FILE_SIZE) {
-		fprintf(stderr, "That file is too big.\n");
-		return -1;
-	}
 
 	//open the file for writing
 	FILE *ofp = fopen(filename, "wb");

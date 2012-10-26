@@ -29,7 +29,4 @@ int readString(BIO *conn, char *buffer, int maxLength);
 /* Receive a file over the network, as sent by sendFile() above. */
 int recvFile(BIO *conn);
 
-/* Send a file across the network. The filename argument
- * will be sent to indicate to the other side what it should
- * be saved as. */
-int writeFile(BIO *conn, FILE *file, char *filename);
+int writeFile(BIO *conn, char *filename, char *writeName, int fileSize);

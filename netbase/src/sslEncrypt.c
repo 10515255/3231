@@ -17,7 +17,8 @@
 
 /* Load the full contents of a file, into a buffer in memory.
  * Returns the buffer, and fills the size into the argument int.*/
-unsigned char *loadFile(char *filename, unsigned int *fileSize) {
+unsigned char *loadFile(char *filename, int *fileSize) {
+	//return size of the file we are loading 
 	*fileSize = sizeOfFile(filename);
 
 	FILE *ifp = fopen(filename, "rb");
@@ -42,6 +43,25 @@ unsigned char *loadFile(char *filename, unsigned int *fileSize) {
 	}
 	
 	return buffer;
+}
+
+int writeDataToFile(char *filename, unsigned char *data, int length) {
+	FILE *ofp = fopen(filename, "w");
+	if(ofp == NULL) {
+		perror("writeDataToFile");
+		return -1;
+	}
+	
+	int numWritten = fwrite(data, 1, length, ofp);
+	if(numWritten < length) {
+		perror("fwrite() in writeDataToFile()\n");
+		fclose(ofp);
+		return -1;
+	}
+
+	fclose(ofp);
+
+	return 0;
 }
 
 /* Produce a signature for the given data, using the given private key.
@@ -219,9 +239,43 @@ unsigned char *decryptData(unsigned char *input, int inLength, int *outLength, u
 	return output;
 }
 
-int calculateMD5(unsigned char *bytes, int length,  unsigned char *hash) {
+int encryptFile(char *filename, char *outFile, unsigned char *key, unsigned char *iv) {
+	int numBytes;
+	unsigned char *bytes = loadFile(filename, &numBytes);
+	if(bytes == NULL) return -1;
 
-	unsigned char *result = MD5(bytes, length, hash);
+	int cipherLength = 0;
+	unsigned char *ciphertext = encryptData(bytes, numBytes, &cipherLength , key, iv);
+	free(bytes);
+	if(ciphertext == NULL) return -1;
+
+	if(writeDataToFile(outFile, ciphertext, cipherLength) == -1) return -1;
+	free(ciphertext);
+
+	return 0;
+}
+
+int decryptFile(char *filename, char *outFile, unsigned char *key, unsigned char *iv) {
+	int cipherLength;
+	unsigned char *ciphertext = loadFile(filename, &cipherLength);
+	if(ciphertext == NULL) return -1;
+
+	int numBytes = 0;
+	unsigned char *bytes = decryptData(ciphertext, cipherLength, &numBytes, key, iv);
+	free(ciphertext);
+	if(bytes == NULL) return -1;
+
+	if(writeDataToFile(outFile, bytes, numBytes) == -1) return -1;
+	free(bytes);
+
+	return 0;
+}
+
+int calculateMD5(char *filename, unsigned char *hash) {
+	int numBytes;
+	unsigned char *bytes = loadFile(filename, &numBytes);
+
+	unsigned char *result = MD5(bytes, numBytes, hash);
 	if(result == NULL) {
 		fprintf(stderr, "MD5 failed or something.\n");
 		return -1;
@@ -265,10 +319,7 @@ EVP_PKEY *loadPrivateKey(char *filename) {
 /* Load a public key from the given file into an RSA structure */
 EVP_PKEY *loadPublicKey(char *filename) {
 	return loadKey(filename, &PEM_read_PUBKEY);
-}
-
-unsigned char *randomBytes(int n) {
-	unsigned char *output = malloc(n);
+} unsigned char *randomBytes(int n) { unsigned char *output = malloc(n);
 	if(output == NULL) {
 		fprintf(stderr, "malloc() failed in randomBytes()\n");
 		exit(EXIT_FAILURE);
@@ -281,30 +332,15 @@ unsigned char *randomBytes(int n) {
 
 /*
 int main(int argc, char **argv) {
-	int fileSize;
-	unsigned char *file = loadFile(argv[1], &fileSize);
 
 	unsigned char key[32];
 	unsigned char iv[32];
 	RAND_bytes(key, 32);
 	RAND_bytes(iv, 32);
-
-
-
-	int outLength;
-	unsigned char *output = encryptData(file, fileSize, &outLength, key, iv);
-	if(output == NULL) {
-		printf("FAIL\n");
-	}
-
-	int decryptedSize = 0;
-	unsigned char *decrypted = decryptData(output, outLength, &decryptedSize, key, iv);
-	for(int i=0; i<decryptedSize; ++i) {
-		putchar(decrypted[i]);
-	}
-	free(file);
-	free(output);
-	free(decrypted);
+	int status = encryptFile(argv[1], argv[2], key, iv);
+	printf("Status %d\n", status);
+	status = decryptFile(argv[2], argv[3], key, iv);
+	printf("Decryp status %d\n", status);
 	return 0;
 }
 */

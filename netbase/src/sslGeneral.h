@@ -5,4 +5,4 @@ void initOpenSSL();
  * Returns a pointer to the new string in dynamic memory. */
 char *buildHostString(char *hostname, char *port);
 
-unsigned int sizeOfFile(char *filename);
+int sizeOfFile(char *filename);

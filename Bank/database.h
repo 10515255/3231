@@ -11,3 +11,5 @@ int getBalance(int targetID);
 /* Remove the user with the given id from our 
  * database of users. */
 int removeUser(int targetID);
+
+int updateBalance(int id, int balance);

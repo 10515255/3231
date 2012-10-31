@@ -19,7 +19,7 @@ database.o : database.c database.h
 cloudProtocol.o : cloudProtocol.c cloudProtocol.h 
 	$(GCC) -c cloudProtocol.c -lssl
 
-../User/databse.o : ../User/database.c ../User/database.h
+../User/database.o : ../User/database.c ../User/database.h
 	$(GCC) -c -o ../User/database.o -c ../User/database.c
 
 #jump to the netbase folder, and run the makefile located there to build the netbase library

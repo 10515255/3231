@@ -143,6 +143,17 @@ int removeUser(int targetID) {
 	return removeLine(usersFilename, targetID);
 }
 
+int addUser(int userid, int balance) {
+	//ensure not already user with this id
+	USER *u = getUser(userid);
+	if(u != NULL) return -1;
+
+	FILE *ofp = fopen(usersFilename, "a");
+	if(ofp == NULL) return -1;
+	fprintf(ofp, "%d %d\n", userid, balance);
+	fclose(ofp);
+}
+
 int getBalance(int id) {
 	USER *user = getUser(id);
 	if(user != NULL) return user->balance;
@@ -150,12 +161,14 @@ int getBalance(int id) {
 	return -1;
 }
 
-int main(int argc, char **argv)
-{
-	for(int i=0; i<5; ++i) {
-		int x = getBalance(i);
-		if(x != -1)	printf("User %d has %d dollars.\n", i, x);
-		else printf("No user %d\n", i);
-	}
+// balance is the new balance
+int updateBalance(int id, int balance) {
+	USER *user = getUser(id);
+	if(user == NULL) return -1;
 
+	removeUser(id);
+	user->balance = balance;
+	if(addUser(user->id, user->balance) == -1) return -1;
+
+	return 0;
 }

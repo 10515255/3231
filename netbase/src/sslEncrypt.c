@@ -152,6 +152,29 @@ int verifyData(void *data, int length, unsigned char *signature, unsigned int si
 	return match;
 }
 
+unsigned char *signFile(char *filename, EVP_PKEY *privKey, unsigned int *sigLength) {
+	int numBytes;
+	unsigned char *bytes = loadFile(filename, &numBytes);
+	if(bytes == NULL) return NULL;
+
+	unsigned char *signature = signData(bytes, numBytes, privKey, sigLength);
+	free(bytes);
+	if(signature == NULL) return NULL;
+
+	return signature;
+}
+
+//int verifyData(void *data, int length, unsigned char *signature, unsigned int sigLength, EVP_PKEY *pubKey) {
+int verifyFile(char *filename, unsigned char *signature, unsigned int sigLength, EVP_PKEY *pubKey) {
+	int numBytes;
+	unsigned char *bytes = loadFile(filename, &numBytes);
+	if(bytes == NULL) return -1;
+
+	int verified = verifyData(bytes, (unsigned int)numBytes, signature, sigLength, pubKey);
+	return verified;
+
+}
+
 /* Encrypte the given block of data using the given key and initialisation vector.
  * Return the results as a block in memory, storing the lengh in outLength */
 unsigned char *encryptData(unsigned char *input, int inLength, int *outLength,  unsigned char *key, unsigned char *iv) {
@@ -319,7 +342,9 @@ EVP_PKEY *loadPrivateKey(char *filename) {
 /* Load a public key from the given file into an RSA structure */
 EVP_PKEY *loadPublicKey(char *filename) {
 	return loadKey(filename, &PEM_read_PUBKEY);
-} unsigned char *randomBytes(int n) { unsigned char *output = malloc(n);
+} 
+
+unsigned char *randomBytes(int n) { unsigned char *output = malloc(n);
 	if(output == NULL) {
 		fprintf(stderr, "malloc() failed in randomBytes()\n");
 		exit(EXIT_FAILURE);
@@ -332,15 +357,18 @@ EVP_PKEY *loadPublicKey(char *filename) {
 
 /*
 int main(int argc, char **argv) {
+	
+	EVP_PKEY *privKey = loadPrivateKey(argv[1]);
+	EVP_PKEY *pubKey = loadPublicKey(argv[2]);
 
-	unsigned char key[32];
-	unsigned char iv[32];
-	RAND_bytes(key, 32);
-	RAND_bytes(iv, 32);
-	int status = encryptFile(argv[1], argv[2], key, iv);
-	printf("Status %d\n", status);
-	status = decryptFile(argv[2], argv[3], key, iv);
-	printf("Decryp status %d\n", status);
+	unsigned int sigLength;
+	unsigned char *signature = signFile(argv[3], privKey, &sigLength);
+
+	int verified = verifyFile(argv[4], signature, sigLength, pubKey);
+	printf("%d\n", verified);
+	free(signature);
+
+
 	return 0;
 }
 */

@@ -2,6 +2,8 @@
 
 #include <openssl/bio.h>
 
+#define NO_SUCH_FILE -2 
+
 /* Write until we have sent all <length> bytes. */
 int writeAll(BIO *conn, char *buffer, int length);
 
@@ -26,7 +28,9 @@ int writeString(BIO *conn, char *buffer);
 /* Read a string from a simple packet */
 int readString(BIO *conn, char *buffer, int maxLength);
 
-/* Receive a file over the network, as sent by sendFile() above. */
-int recvFile(BIO *conn);
+/* Write a file over the network. */
+int writeFile(BIO *conn, char *filename, char *writeName);
 
-int writeFile(BIO *conn, char *filename, char *writeName, int fileSize);
+/* Receive a file over the network, as sent by sendFile() above. */
+int recvFile(BIO *conn, char *filename);
+

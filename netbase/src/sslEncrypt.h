@@ -4,9 +4,15 @@
 
 unsigned char *loadFile(char *filename, int *fileSize);
 
+int writeDataToFile(char *filename, unsigned char *data, int length);
+
 unsigned char *signData(void *data, int length, EVP_PKEY *privKey, unsigned int *sigLength);
 
 int verifyData(void *data, int length, unsigned char *signature, unsigned int sigLength, EVP_PKEY *pubKey); 
+
+unsigned char *signFile(char *filename, EVP_PKEY *privKey, unsigned int *sigLength);
+
+int verifyFile(char *filename, unsigned char *signature, unsigned int sigLength, EVP_PKEY *pubKey);
 
 unsigned char *encryptData(unsigned char *input, int inLength, int *outLength,  unsigned char *key, unsigned char *iv);
 

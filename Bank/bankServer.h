@@ -1,0 +1,6 @@
+#define GET_BALANCE_CODE 1
+#define WITHDRAW_CODE 2
+
+#define NOTE_SIZE 128
+#define SIG_SIZE 256 
+#define CLOUD_DOLLAR_SIZE (NOTE_SIZE + SIG_SIZE)

@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <unistd.h>
+#include <openssl/md5.h>
 
 #include "../netbase/netbase.h"
 #include "cloudProtocol.h"
@@ -16,6 +17,8 @@
 //the filename we give files as we encrypt them before uploading
 #define TEMP_ENCRYPTED_FILENAME "tempEncrypted.file"
 
+#define USER_FILE_FOLDER "Files"
+
 #define BUFFER_SIZE 1024
 #define MEGABYTE (1024*1024)
 
@@ -23,6 +26,8 @@
 #define UPLOAD_FILE_CODE 2
 #define DOWNLOAD_FILE_CODE 3
 #define DELETE_FILE_CODE 4
+#define VERIFY_FILE_CODE 5
+#define WALLET_CODE 6
 
 /* Helper function for clientListFiles().  Write the filename
  * of all items in a directory to the given string, separated
@@ -88,10 +93,8 @@ int serverListFiles(BIO *conn, int clientid) {
 int clientUploadFile(BIO *conn, char *filename) {
  
 	FILE *ifp = fopen(filename, "rb");
-	if ( ifp == NULL )  return 5;
+	if ( ifp == NULL )  return NO_SUCH_FILE;
 	//send the code which causes the server to call serverUploadFile()
-	
-	
 	if(writeInt(conn, UPLOAD_FILE_CODE) == -1) return -1;
 	
 	//generate key and iv for encryption
@@ -124,9 +127,8 @@ int clientUploadFile(BIO *conn, char *filename) {
 	}
 	else if(fee < 0) return -1;
 
-	printf("ABOUT TO SEND THE FILE\n");
 	//send the file
-	if(writeFile(conn, TEMP_ENCRYPTED_FILENAME, filename, fileSize) < 1) return -1;
+	if(writeFile(conn, TEMP_ENCRYPTED_FILENAME, filename) < 1) return -1;
 
 	unlink( TEMP_ENCRYPTED_FILENAME );
 	//free and return
@@ -141,8 +143,6 @@ int serverUploadFile(BIO *conn, int clientid) {
 	//receive the filesize
 	int fileSize = readInt(conn);
 	if(fileSize == -1) return -1;
-
-	printf("Received filesize %d\n", fileSize);
 
 	//the upload costs $1 per MEGABYTE
 	int cost = fileSize / MEGABYTE;
@@ -160,7 +160,6 @@ int serverUploadFile(BIO *conn, int clientid) {
 	if(response != 0) return response;
 	if(status < 0) return status;
 	
-	printf("Going ahead with file transfer.\n");
 	char userDirectory[BUFFER_SIZE];
 	snprintf(userDirectory, sizeof(userDirectory), "./%d/", clientid);
 	if(chdir(userDirectory) != 0) {
@@ -168,38 +167,40 @@ int serverUploadFile(BIO *conn, int clientid) {
 		return -1;
 	}
 
-	printf("ABOUT TO GET THE FILE\n");
 
-	//receive the file
-	status = recvFile(conn);
+	//receive the file, save it with whatever name the client uses
+	status = recvFile(conn, NULL);
 	if(chdir("../") != 0) {
 		perror("serverUploadFile");
 		return -1;
 	}
 
 	if(status < 1) return -1;
-	printf("Server succesfully uploaded the file.\n");
 	return 1;
 }
 
 int clientDownloadFile(BIO *conn, char *filename, int clientid)  {
+	//trigger the server to call serverDownloadFile()
 	if(writeInt(conn, DOWNLOAD_FILE_CODE) == -1) return -1;
 	
+	//send the server the filename we want to download
 	if ( writeString(conn, filename) < 1 ) return -1;
 	
-	//int fileSize = readInt(conn);
-	//if ( fileSize < 0 ) return -1;
-	
-	int status = recvFile(conn);
+	//receive the encrypted file, save to temporary file
+	int status = recvFile(conn, TEMP_ENCRYPTED_FILENAME);
 	if ( status < 0 ) return -1;
 	if ( status == 5 ) return 5;
 	
 	FILERECORD *r = getRecord(filename);
+	if(r == NULL) {
+		printf("No record stored for this file, so no decryption performed.\n");
+		return 1;
+	}
 	
-	
+	//decrypt the file, and save with it's original name
 	status = decryptFile(TEMP_ENCRYPTED_FILENAME, filename, r->key, r->iv);
 	if ( status < 0 ) return -1;
-	
+
 	unlink(TEMP_ENCRYPTED_FILENAME);
 	
 	return 1;
@@ -218,9 +219,8 @@ int serverDownloadFile(BIO *conn, int clientid)  {
 	char filename[BUFFER_SIZE];
 	if ( readString( conn, filename, sizeof(filename) ) < 1 ) return -1;
 	
-	printf("%s\n", filename);
 	
-	int status = writeFile(conn, filename, TEMP_ENCRYPTED_FILENAME, sizeOfFile(filename) );
+	int status = writeFile(conn, filename, TEMP_ENCRYPTED_FILENAME);
 	
 	if(chdir("../") != 0) {
 		perror("serverDownloadFile");
@@ -241,6 +241,9 @@ int clientDeleteFile(BIO *conn, char *filename, int clientid)  {
 	
 	if ( status == 5 ) return 5;
 	if ( status < 0 ) return -1;
+
+	//remove this file's record from our database
+	removeRecord(filename);
 	
 	return 0;
 	
@@ -271,15 +274,140 @@ int serverDeleteFile(BIO *conn, int clientid)  {
 	if(chdir("../") != 0) {
 		perror("serverDeleteFile");
 		return -1;
-		return -1;
 	}
 	
 	if ( writeInt(conn, status) < 0 ) return -1;
 	
 	return status;
-	
-	
 }
+
+int clientVerifyFile(BIO *conn, char *filename, int clientid) {
+	if(writeInt(conn, VERIFY_FILE_CODE) == -1) return -1;
+
+	//send the filename
+	if(writeString(conn, filename) < 1) return -1;
+
+	int status = readInt(conn);
+	//if the file does not exist
+	if(status == 5) return 5;
+	//if server failed to calculate hash
+	if(status == -1) return -1;
+	
+	//receive a digest
+	char digest[MD5_DIGEST_LENGTH];
+	status = readPacket(conn, digest, sizeof(digest));
+	if(status < 1) return -1;
+	
+	//check it against our stored digest
+	FILERECORD *record = getRecord(filename);
+	if(record == NULL) return -1;
+
+	if(memcmp(digest, record->hash, sizeof(digest)) != 0) {
+		printf("The file digest does not match our records.\n");
+	}
+	else printf("The file digest matches our records.\n");
+
+	return 0;
+}
+
+int serverVerifyFile(BIO *conn, int clientid) {
+	//receive the filename
+	char filename[BUFFER_SIZE];
+	if(readString(conn, filename, sizeof(filename)) < 1) return -1;
+
+	char userDirectory[BUFFER_SIZE];
+	snprintf(userDirectory, sizeof(userDirectory), "./%d/", clientid);
+	if(chdir(userDirectory) != 0) {
+		perror("serverDeleteFile");
+		return -1;
+	}
+
+	//check the file exists first
+	FILE *ifp = fopen(filename, "rb");
+	if(ifp == NULL) {
+		if(writeInt(conn, 5) < 1) return -1;
+		return 5; 
+	}
+	fclose(ifp);
+	
+	//calculate a digest
+	unsigned char digest[MD5_DIGEST_LENGTH];
+	int status = calculateMD5(filename, digest);
+	if(status == -1) {
+		writeInt(conn, -1);
+		return -1;
+	}
+
+	if(chdir("../") != 0) {
+		perror("serverDeleteFile");
+		return -1;
+	}
+
+	if(writeInt(conn, 0) < 1) return -1;
+
+	//send the digest
+	status = writePacket(conn, (char *)digest, sizeof(digest));
+	if(status < 1) return -1;
+	return status;
+}
+
+/*
+int clientWallet(BIO *conn, char *filename, int clientid, EVP_PKEY *privKey)  {
+	if ( writeInt( conn, WALLET_CODE ) == -1) return -1;
+	
+	writeString(conn, filename);
+	
+	unsigned int sigLength;
+	unsigned char* signature = signFile(filename, privKey, &sigLength);
+	
+	int status = writeFile(conn, filename, filename);
+	if ( status < 1 ) return -1;
+	
+	status = writePacket(conn, (char *)signature, (int)sigLength );
+	
+	if ( status < 1 ) return -1;
+	
+
+}
+*/
+
+/*
+int serverWallet(BIO *conn, int clientid)  {
+
+	int status = recvFile(conn);
+	if ( status < 1 ) return -1;
+	
+	char filename[BUFFER_SIZE];
+	readString(conn, filename, sizeof(filename));
+	
+	char buffer[BUFFER_SIZE];
+	
+	status = readPacket(conn, buffer, sizeof(buffer));
+	if ( status == -1 ) return -1;
+	
+	int verified = verifyFile( filename, (unsigned char*)buffer, 256 );
+	if ( verified)  {
+	    FILE *fp = fopen(filename, "r");
+	    if ( fp == NULL ) return -1;
+	    
+	    char line[BUFFER_SIZE];
+	    fgets(line, sizeof(line), fp);
+	    fgets(line, sizeof(line), fp);
+	    fgets(line, sizeof(line), fp);
+	    
+	 
+	    int amount;
+	    int numMatched = sscan( line, "Amount: %d", &amount);
+	    
+	    if ( numMatched != 1 ) return -1;
+	    else updateBalance(userid, getBalance(userid) + amount);
+	    
+	    return 0;
+	}
+	
+  
+}
+*/
 
 
 /* The server receives a command code, branch to the 
@@ -300,6 +428,13 @@ int respondToCommand(BIO *conn, int code, int clientid) {
 		case DELETE_FILE_CODE:
 			status = serverDeleteFile(conn, clientid);
 			break;
+		case VERIFY_FILE_CODE:
+			status = serverVerifyFile(conn, clientid);
+			break;
+		/*case WALLET_CODE:
+			status = serverWallet(conn, clientid);
+			break;
+		*/
 		default:
 			status = 0;
 			break;

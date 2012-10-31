@@ -104,7 +104,6 @@ int readPacket(BIO *conn, char *buffer, int maxLength) {
 	if(status < 1) return status;
 
 	int packetLength = ntohl(numBytes);
-	printf("Incoming packet %d bytes\n", packetLength);
 	//ensure buffer has capacity
 	if(packetLength > maxLength) {
 		fprintf(stderr, "readPacket() received a packet longer than the allocated space.\n");
@@ -132,26 +131,29 @@ int readString(BIO *conn, char *buffer, int maxLength) {
 /* Send a file across the network. The filename argument
  * will be sent to indicate to the other side what it should
  * be saved as. */
-int writeFile(BIO *conn, char *filename, char *writeName, int fileSize) {
-
-	/* Send a header message with the filename, and length */
+int writeFile(BIO *conn, char *filename, char *writeName) {
+	//if no alternate name supplied, just use it's actual name
+	if(writeName == NULL) writeName = filename;
 
 	FILE *ifp = fopen(filename, "rb");
 	if(ifp == NULL) {
 		perror("writeFile");
-		writeInt(conn, -1);
-		return 5;
+		//send NO_SUCH_FILE as the file length to indicate file is not coming
+		writeInt(conn, NO_SUCH_FILE);
+		return NO_SUCH_FILE;
 	}
-	
+
 	//send the file length in 4 bytes
+	int fileSize = sizeOfFile(filename);
 	if(writeInt(conn, fileSize) == -1) return -1;
+	if(fileSize == -1) return -1;
 	
 	//send the filename first in a simple packet
 	if(writeString(conn, writeName) < 1) return -1;
 
 	/* Now transfer the file */
 	char fileBuffer[BUFSIZ];
-	while(1) {
+	while(fileSize > 0) {
 		//read a chunk
 		int numRead = fread(fileBuffer, 1, BUFSIZ, ifp); 
 		if(numRead == 0) break;
@@ -163,8 +165,6 @@ int writeFile(BIO *conn, char *filename, char *writeName, int fileSize) {
 		fileSize -= numRead;
 	}
 
-	printf("File transfer over\n");
-
 	if(fileSize != 0) {
 		fprintf(stderr, "writeFile(): fileSize non-zero after sending. Incomplete??\n");
 		return -1;
@@ -174,18 +174,22 @@ int writeFile(BIO *conn, char *filename, char *writeName, int fileSize) {
 }
 
 
-/* Receive a file over the network, as sent by sendFile() above. */
-int recvFile(BIO *conn) {
+/* Receive a file over the network, as sent by sendFile() above.
+ * If a filename is provided, the file will be saved with this name,
+ * otherwise it will be saved with the name sent preceding the packet.*/
+int recvFile(BIO *conn, char *filename) {
+	//receive the number of bytes in this file
 	int numBytes = readInt(conn);
-	if(numBytes == -1) return 5;
-	printf("The file will have %d bytes.\n", numBytes);
-	
-	//the filename will arrive in a simple packet
-	char filename[MAX_FILENAME_LENGTH];
-	if(readString(conn, filename, sizeof(filename)) == -1) return -1;
-	printf("Got the filename, %s\n", filename);
-	
+	if(numBytes == NO_SUCH_FILE) return NO_SUCH_FILE;
+	if(numBytes == -1) return -1;
 
+	//receive the server's name for this file
+	char serverFilename[MAX_FILENAME_LENGTH];
+	if(readString(conn, serverFilename, sizeof(serverFilename)) == -1) return -1;
+
+
+	//if no filename was supplied, use the server's filename
+	if(filename == NULL) filename = serverFilename;
 
 	//open the file for writing
 	FILE *ofp = fopen(filename, "wb");
@@ -199,8 +203,7 @@ int recvFile(BIO *conn) {
 	while(numBytes > 0) {
 		//read until a full buffer (unless remaining bytes would not fill it)
 		int amount = (numBytes < sizeof(fileBuffer)) ? numBytes : sizeof(fileBuffer);
-		int status = readAll(conn, fileBuffer, amount);
-		if(status < 1) {
+		if(readAll(conn, fileBuffer, amount) < 1) {
 			fclose(ofp);
 			return -1;
 		}

@@ -11,20 +11,13 @@
 #define MAX_FILE_SIZE 1024
 #define BUFFER_SIZE 1024
 
-#define NOTE_SIZE 128
-#define SIG_SIZE 256 
-#define CLOUD_DOLLAR_SIZE (NOTE_SIZE + SIG_SIZE)
-
 #define TRUST_STORE "Certs/1Cert.pem"
-#define SERVER_CERTIFICATE "Certs/cloudCert.pem"
-#define SERVER_PRIVKEY "Certs/cloudPrivateKey.pem"
-#define SERVER_PUBKEY "Certs/cloudPublicKey.pem"
-
-
+#define SERVER_CERTIFICATE "Certs/bankCert.pem"
+#define SERVER_PRIVKEY "Certs/bankPrivateKey.pem"
+#define SERVER_PUBKEY "Certs/bankPublicKey.pem"
 
 EVP_PKEY *privateKey;
 EVP_PKEY *publicKey;
-int userid;
 int serialNumber = 0;
 
 int loadKeys() {
@@ -38,12 +31,12 @@ int loadKeys() {
 /* Build a cloud dollar.  The first NOTE_SIZE contains the data
  * of the note itself, plus some random bytes to fill up the rest.
  * The last SIG_SIZE bytes are a signature of the first part. */
-unsigned char *buildCloudDollar(int serial, int amount) {
+unsigned char *buildCloudDollar(int serial, int amount, int userid) {
 	unsigned char *cloudDollar = randomBytes(CLOUD_DOLLAR_SIZE);
 	if(cloudDollar == NULL) return NULL;
 
 	//write the first part of the note
-	snprintf(cloudDollar, NOTE_SIZE, "This is a certified cloud cheque issued by CLOUD BANK.\nSerial: %010d\nAmount: %010d\n", serial, amount); 
+	snprintf(cloudDollar, NOTE_SIZE, "This is a certified cloud cheque issued by CLOUD BANK.\nSerial: %010d\nAmount: %010d\nUser: %010d\n", serial, amount, userid); 
 
 	int sigLength;
 	//sign the note part of the cloud dollar
@@ -57,58 +50,54 @@ unsigned char *buildCloudDollar(int serial, int amount) {
 	return cloudDollar;
 }
 
-int verifyCloudDollar(char *cloudDollar) {
+int verifyCloudDollar(unsigned char *cloudDollar) {
 	int verified = verifyData(cloudDollar, NOTE_SIZE, cloudDollar + NOTE_SIZE, SIG_SIZE, publicKey);
 
 	return verified;
 }
 
-int serverGetBalance(BIO *conn)  {
+int serverGetBalance(BIO *conn, int userid)  {
 	int balance = getBalance(userid);
 	
 	if ( writeInt(conn, balance) == -1 ) return -1;
+	if(balance == -1) return -1;
 	return 0;
 }
 
-int serverWithdraw(BIO *conn)  {
+int serverWithdraw(BIO *conn, int userid)  {
 	int amount = readInt(conn);
-	int status;
+	int status = 0;
 	if ( amount < 0 ) status = -1;
 
-	
-	
 	int balance = getBalance(userid);
 	if ( balance < amount ) status = -1;
 
+	//send negative number to indicate withdrawal not going ahead
 	if ( status < 0 )  {
 	    writeInt(conn, status);
 	    return -1;
 	}
-
-	
+	//send 0 to indicate withdrawal going ahead
 	if (  writeInt(conn, 0) == -1 ) return -1;
-	updateBalance(userid, balance - amount);
-	
-	unsigned char* cheque = buildCloudDollar( serialNumber, amount );
 
+	//update the users balance, and build a cloud cheque for the amount
+	updateBalance(userid, balance - amount);
+	unsigned char* cheque = buildCloudDollar( serialNumber, amount, userid );
 	serialNumber++;
 
+	//send the cloud cheque to the user
 	status = writePacket( conn, cheque, CLOUD_DOLLAR_SIZE );
 	free(cheque);
 	if ( status < 0 )  {
 	    return -1;
 	}
-	
-	
 
-	
-	
-	
+	return 0;
 }
 
 int handleClient(BIO *client) {	
 	//find out who the user is
-	userid = readInt(client);
+	int userid = readInt(client);
 	if(userid == -1) return -1;
 	printf("User %d has connected.\n", userid);
 
@@ -116,15 +105,24 @@ int handleClient(BIO *client) {
 	 * functionality of the protocol is being initiate. */
 	while(1) {
 		int commandCode = readInt(client);
-		if(commandCode == -1) return -1;
-		printf("Client: %d\n", commandCode);
+		if(commandCode == -1) {
+			printf("User %d disconnected.\n");
+			return -1;
+		}
+		int status = 0;
 
 		switch (commandCode)  {
 		  case GET_BALANCE_CODE:
-		    serverGetBalance(client);
+		    printf("User %d requested a balance.\n");
+		    status = serverGetBalance(client, userid);
+			if(status == -1) printf("serverGetBalance() failed.\n");
+			else printf("Success.\n");
 		    break;
 		  case WITHDRAW_CODE:
-		    serverWithdraw(client);
+		    printf("User %d wants to withdraw money.\n");
+		    status = serverWithdraw(client, userid);
+			if(status == -1) printf("serverWithdraw() failed.\n");
+			else printf("Success\n");
 		    break;
 		  default:
 		    printf("Unrecognised command\n");

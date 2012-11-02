@@ -106,7 +106,7 @@ int clientUploadFile(BIO *conn, char *filename) {
 
 	//get digest
 	unsigned char hash[MD5_DIGEST_LENGTH];
-	status = calculateMD5(TEMP_ENCRYPTED_FILENAME, hash);
+	status = calculateMD5(TEMP_ENCRYPTED_FILENAME, hash, NULL, 0);
 	if(status < 0) {
 		fprintf(stderr, "Fail to calculate digest in uploadFile()\n");
 		return -1;
@@ -332,7 +332,7 @@ int serverVerifyFile(BIO *conn, int clientid) {
 	
 	//calculate a digest
 	unsigned char digest[MD5_DIGEST_LENGTH];
-	int status = calculateMD5(filename, digest);
+	int status = calculateMD5(filename, digest, NULL, 0);
 	if(status == -1) {
 		writeInt(conn, -1);
 		return -1;

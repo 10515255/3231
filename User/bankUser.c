@@ -11,9 +11,11 @@
 #define MAX_COMMAND_SIZE 512 
 
 #define TRUST_STORE "Certs/trustStore.pem"
+#define BANK_PUBLIC_KEY "Certs/bankPublicKey.pem"
 
 
 int userid;
+EVP_PKEY *bankPublicKey;
 
 void stripNewline(char *string) {
 	string[strlen(string)-1] = '\0';
@@ -44,11 +46,20 @@ int clientWithdraw(BIO *conn, int amount)  {
 	
 	status = readPacket(conn, buffer, sizeof(buffer) );
 	if ( status == -1 ) return -1;
+
+	//verify it is a true bank cloud cheque
+	int verified = verifyData(buffer, NOTE_SIZE, buffer+NOTE_SIZE, SIG_SIZE, bankPublicKey);
+	
+	//save the cheque to file
 	status = writeDataToFile( "cheque", buffer, sizeof(buffer) );
 	if ( status == -1 ) return -1;
+
+	if(verified) {
+	}
+	else {
+	}
+
 	return 0;
-	
-	
 }
 
 int handleServer(BIO *server) {
@@ -71,22 +82,19 @@ int handleServer(BIO *server) {
 			}
 			else  {
 			      int status = clientWithdraw(server, amount);
-			      printf("status is : %d\n", status);
+				  if(status == -1) printf("Failed to withdraw.\n");
+				  if(status == 1) printf("Warning: Received INAVALID cheque.\n");
+				  else printf("Success.\n");
 			}
 		}    
+		else if ( strcmp(buffer, "quit") == 0) {
+			break;
+		}
 		else {
 			printf("Invalid Command\n");
 			writeInt(server, 0);
 			continue;
 		}
-
-		/*
-		int status = readString(server, buffer, sizeof(buffer));
-		if(status < 1) {
-			printf("Error by readString() in handleServer()\n");
-			return -1;
-		}
-		*/
 	}
 
 	return 0;
@@ -95,7 +103,7 @@ int handleServer(BIO *server) {
 
 int main(int argc, char **argv) {
 	if(argc < 6) {
-		fprintf(stderr, "Expected a hostname and port.\n");
+		fprintf(stderr, "Expected a hostname, port, certificate, privatekey and userid.\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -105,6 +113,12 @@ int main(int argc, char **argv) {
 	char *privKeyFile = argv[4];
 	//set the global userid
 	userid = atoi(argv[5]);
+	//load the banks public key
+	bankPublicKey = loadPublicKey(BANK_PUBLIC_KEY);
+	if(bankPublicKey == NULL) {
+		fprintf(stderr, "Failed to load the bank's public key: %s\n");
+		exit(EXIT_FAILURE);
+	}
 
 	//connect to the server, then run handleServer() on the resulting connection
 	initOpenSSL();

@@ -22,7 +22,8 @@ int encryptFile(char *filename, char *outFile, unsigned char *key, unsigned char
 
 int decryptFile(char *filename, char *outFile, unsigned char *key, unsigned char *iv);
 
-int calculateMD5(char *filename, unsigned char *hash);
+
+int calculateMD5(char *filename,unsigned char *hash,  unsigned char *salt, int saltSize);
 
 /* Load a private key from file into an EVP_PKEY structure */
 EVP_PKEY *loadPrivateKey(char *filename);

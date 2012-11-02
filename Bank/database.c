@@ -134,7 +134,6 @@ USER *getUser(int targetID) {
 	}
 
 	//no user with the given id on file
-	fprintf(stderr, "getUser() called on non-existant user %u\n", targetID);
 	fclose(usersFile);
 	return NULL;
 }

@@ -294,19 +294,38 @@ int decryptFile(char *filename, char *outFile, unsigned char *key, unsigned char
 	return 0;
 }
 
-int calculateMD5(char *filename, unsigned char *hash) {
-	int numBytes;
-	unsigned char *bytes = loadFile(filename, &numBytes);
+int calculateMD5(char *filename, unsigned char *hash, unsigned char *salt, int saltSize) {
+	EVP_MD_CTX *ctx = EVP_MD_CTX_create();
+	EVP_DigestInit_ex(ctx, EVP_md5(), NULL);
 
-	unsigned char *result = MD5(bytes, numBytes, hash);
-	if(result == NULL) {
-		fprintf(stderr, "MD5 failed or something.\n");
+	//if supplied, run the salt through the digester first
+	if(salt != NULL) {
+		EVP_DigestUpdate(ctx, salt, saltSize);
+	}
+
+	//then run the file through
+	FILE *ifp = fopen(filename, "rb");
+	if(ifp == NULL) return -1;
+
+	char buffer[BUFSIZ];
+	int numRead = 0;
+	while((numRead = fread(buffer, 1, sizeof(buffer), ifp)) != 0) {
+		//run each chunk through the digester
+		EVP_DigestUpdate(ctx, buffer, numRead);
+	}
+	fclose(ifp);
+	if(!feof(ifp)) {
+		fprintf(stderr, "properMD5() failed due to file error.\n");
 		return -1;
 	}
 
+	//finalize the digest and put it in the argument buffer
+	unsigned int digestSize = 0;
+	EVP_DigestFinal(ctx, hash, &digestSize);
+
+	EVP_MD_CTX_destroy(ctx);
 	return 0;
 }
-
 
 /* Load an RSA structure with the contents of the given file,
  * using the giving function to perform loading. */
@@ -356,17 +375,32 @@ unsigned char *randomBytes(int n) { unsigned char *output = malloc(n);
 }
 
 /*
+#include <string.h>
+
 int main(int argc, char **argv) {
 	
 	EVP_PKEY *privKey = loadPrivateKey(argv[1]);
 	EVP_PKEY *pubKey = loadPublicKey(argv[2]);
 
-	unsigned int sigLength;
-	unsigned char *signature = signFile(argv[3], privKey, &sigLength);
 
-	int verified = verifyFile(argv[4], signature, sigLength, pubKey);
-	printf("%d\n", verified);
-	free(signature);
+	unsigned char hash[MD5_DIGEST_LENGTH];
+	properMD5(argv[3], NULL, 0, hash);
+	unsigned char hash2[MD5_DIGEST_LENGTH];
+	calculateMD5(argv[3], hash2);
+
+	if(0 == memcmp(hash, hash2, MD5_DIGEST_LENGTH)) {
+		printf("Matching digests.\n");
+	}
+	else printf("Non-matching digests.\n");
+
+	for(int i=0; i<MD5_DIGEST_LENGTH; ++i) {
+		printf("%02x", hash[i]);
+	}
+	putchar('\n');
+	for(int i=0; i<MD5_DIGEST_LENGTH; ++i) {
+		printf("%02x", hash2[i]);
+	}
+	putchar('\n');
 
 
 	return 0;

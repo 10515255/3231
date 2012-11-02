@@ -26,7 +26,6 @@ int readInt(BIO *conn) {
 	uint32_t number = 0;
 	int status = readAll(conn, (char *)&number, sizeof(uint32_t));
 	if(status < 1) {
-		fprintf(stderr, "readAll() return %d in readInt()\n", status);
 		return -1;
 	}
 	number = ntohl(number);

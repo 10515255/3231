@@ -8,3 +8,8 @@ server
 test
 cloudServer
 bankServer
+test.txt
+bankUser
+cheque
+files.db
+users.txt

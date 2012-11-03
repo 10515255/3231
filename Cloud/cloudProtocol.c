@@ -315,6 +315,7 @@ int serverVerifyFile(BIO *conn, int clientid) {
 	char filename[BUFFER_SIZE];
 	if(readString(conn, filename, sizeof(filename)) < 1) return -1;
 
+	//navigate to the users directory
 	char userDirectory[BUFFER_SIZE];
 	snprintf(userDirectory, sizeof(userDirectory), "./%d/", clientid);
 	if(chdir(userDirectory) != 0) {
@@ -322,7 +323,7 @@ int serverVerifyFile(BIO *conn, int clientid) {
 		return -1;
 	}
 
-	//check the file exists first
+	//open the file or send 5 if file does not exits
 	FILE *ifp = fopen(filename, "rb");
 	if(ifp == NULL) {
 		if(writeInt(conn, 5) < 1) return -1;
@@ -330,7 +331,7 @@ int serverVerifyFile(BIO *conn, int clientid) {
 	}
 	fclose(ifp);
 	
-	//calculate a digest
+	//calculate a digest OR send -1 if error
 	unsigned char digest[MD5_DIGEST_LENGTH];
 	int status = calculateMD5(filename, digest, NULL, 0);
 	if(status == -1) {
@@ -343,6 +344,7 @@ int serverVerifyFile(BIO *conn, int clientid) {
 		return -1;
 	}
 
+	//send 0 to indicate no failure, and a digest is coming
 	if(writeInt(conn, 0) < 1) return -1;
 
 	//send the digest

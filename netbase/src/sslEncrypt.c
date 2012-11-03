@@ -305,19 +305,27 @@ int calculateMD5(char *filename, unsigned char *hash, unsigned char *salt, int s
 
 	//then run the file through
 	FILE *ifp = fopen(filename, "rb");
-	if(ifp == NULL) return -1;
-
-	char buffer[BUFSIZ];
-	int numRead = 0;
-	while((numRead = fread(buffer, 1, sizeof(buffer), ifp)) != 0) {
-		//run each chunk through the digester
-		EVP_DigestUpdate(ctx, buffer, numRead);
-	}
-	fclose(ifp);
-	if(!feof(ifp)) {
-		fprintf(stderr, "properMD5() failed due to file error.\n");
+	if(ifp == NULL) {
+		perror(filename);
 		return -1;
 	}
+
+	int fileSize = sizeOfFile(filename);
+	char buffer[BUFSIZ];
+	while(fileSize > 0) {
+		int amount = (fileSize > sizeof(buffer)) ? sizeof(buffer) : fileSize;
+		int numRead = fread(buffer, 1, amount, ifp);
+		if(numRead != amount) {
+			perror("fread() in calculateMD5()");
+			fclose(ifp);
+			return -1;
+		}
+		//run each chunk through the digester
+		EVP_DigestUpdate(ctx, buffer, numRead);
+
+		fileSize -= amount;
+	}
+	fclose(ifp);
 
 	//finalize the digest and put it in the argument buffer
 	unsigned int digestSize = 0;
@@ -363,7 +371,8 @@ EVP_PKEY *loadPublicKey(char *filename) {
 	return loadKey(filename, &PEM_read_PUBKEY);
 } 
 
-unsigned char *randomBytes(int n) { unsigned char *output = malloc(n);
+unsigned char *randomBytes(int n) { 
+	unsigned char *output = malloc(n);
 	if(output == NULL) {
 		fprintf(stderr, "malloc() failed in randomBytes()\n");
 		exit(EXIT_FAILURE);
@@ -382,26 +391,14 @@ int main(int argc, char **argv) {
 	EVP_PKEY *privKey = loadPrivateKey(argv[1]);
 	EVP_PKEY *pubKey = loadPublicKey(argv[2]);
 
-
 	unsigned char hash[MD5_DIGEST_LENGTH];
-	properMD5(argv[3], NULL, 0, hash);
-	unsigned char hash2[MD5_DIGEST_LENGTH];
-	calculateMD5(argv[3], hash2);
+	calculateMD5(argv[3], hash, NULL, 0);
 
-	if(0 == memcmp(hash, hash2, MD5_DIGEST_LENGTH)) {
-		printf("Matching digests.\n");
-	}
-	else printf("Non-matching digests.\n");
 
 	for(int i=0; i<MD5_DIGEST_LENGTH; ++i) {
 		printf("%02x", hash[i]);
 	}
 	putchar('\n');
-	for(int i=0; i<MD5_DIGEST_LENGTH; ++i) {
-		printf("%02x", hash2[i]);
-	}
-	putchar('\n');
-
 
 	return 0;
 }

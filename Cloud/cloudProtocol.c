@@ -26,8 +26,11 @@
 #define UPLOAD_FILE_CODE 2
 #define DOWNLOAD_FILE_CODE 3
 #define DELETE_FILE_CODE 4
+
 #define VERIFY_FILE_CODE 5
 #define WALLET_CODE 6
+
+#define REFRESH_HASHES_CODE 7
 
 /* Helper function for clientListFiles().  Write the filename
  * of all items in a directory to the given string, separated
@@ -91,11 +94,12 @@ int serverListFiles(BIO *conn, int clientid) {
 }
 
 int clientUploadFile(BIO *conn, char *filename) {
- 
+
+	/* CALCULATE AND STORE ANY RECORDS OF THIS FILE WE NEED
+	 * BEFORE UPLOADING IT */
+
 	FILE *ifp = fopen(filename, "rb");
 	if ( ifp == NULL )  return NO_SUCH_FILE;
-	//send the code which causes the server to call serverUploadFile()
-	if(writeInt(conn, UPLOAD_FILE_CODE) == -1) return -1;
 	
 	//generate key and iv for encryption
 	unsigned char *key = randomBytes(32);
@@ -103,17 +107,45 @@ int clientUploadFile(BIO *conn, char *filename) {
 	
 	//encrypt the file
 	int status = encryptFile(filename, TEMP_ENCRYPTED_FILENAME, key, iv);
+	if(status == -1) {
+		fprintf(stderr, "Failed to encrypt %s in clientUploadFile()\n", filename);
+		return -1;
+	}
 
-	//get digest
-	unsigned char hash[MD5_DIGEST_LENGTH];
-	status = calculateMD5(TEMP_ENCRYPTED_FILENAME, hash, NULL, 0);
-	if(status < 0) {
-		fprintf(stderr, "Fail to calculate digest in uploadFile()\n");
+	//we need to store NUM_HASHES salts and digests for later verification
+	unsigned char *salts[NUM_HASHES];
+	unsigned char *hashes[NUM_HASHES];
+
+	for(int i=0; i<NUM_HASHES; ++i) {
+		//generate a random salt
+		salts[i] = randomBytes(SALT_LENGTH);
+		//compute the digest for the file with that salt
+		hashes[i] = calculateMD5(TEMP_ENCRYPTED_FILENAME, salts[i], SALT_LENGTH);
+		if(hashes[i] == NULL) {
+			fprintf(stderr, "Failed to calculate digest in clientUploadFile()\n");
+			return -1;
+		}
+	}
+	
+	//store all this data for later
+	status = addRecord(filename, 0, hashes, salts, key, iv);
+	if(status == -1) {
+		fprintf(stderr, "addRecord() failed for in clientUploadFile()\n");
 		return -1;
 	}
 	
-	//store these for later
-	addRecord(filename, hash, key, iv);
+	//free the memory we allocated above
+	for(int i=0; i < NUM_HASHES; ++i) {
+		free(salts[i]);
+		free(hashes[i]);
+	}
+	free(key);
+	free(iv);
+
+	/* START THE ACTUAL COMMUNICATION WITH THE SERVER */
+	
+	//send the code which causes the server to call serverUploadFile()
+	if(writeInt(conn, UPLOAD_FILE_CODE) == -1) return -1;
 
 	//send the fileSize
 	int fileSize = sizeOfFile(TEMP_ENCRYPTED_FILENAME);
@@ -129,15 +161,11 @@ int clientUploadFile(BIO *conn, char *filename) {
 
 	//send the file
 	if(writeFile(conn, TEMP_ENCRYPTED_FILENAME, filename) < 1) return -1;
-
 	unlink( TEMP_ENCRYPTED_FILENAME );
-	//free and return
-	free(key);
-	free(iv);
-
 	printf("Client succesfully uploaded the file.\n");
 	return 0;
 }
+
 
 int serverUploadFile(BIO *conn, int clientid) {
 	//receive the filesize
@@ -179,7 +207,11 @@ int serverUploadFile(BIO *conn, int clientid) {
 	return 1;
 }
 
-int clientDownloadFile(BIO *conn, char *filename, int clientid)  {
+/* Download the file with the given name from the server.  If decrypt is 0
+ * then the file will not be decrypted, and will be left in TEMP_ENCRYPTED_FILENAME.
+ * If decrypt is not 0 then the file will be decrypted according to the clients
+ * records and saved under its original name. */
+int clientDownloadFile(BIO *conn, char *filename, int clientid, int decrypt)  {
 	//trigger the server to call serverDownloadFile()
 	if(writeInt(conn, DOWNLOAD_FILE_CODE) == -1) return -1;
 	
@@ -190,11 +222,16 @@ int clientDownloadFile(BIO *conn, char *filename, int clientid)  {
 	int status = recvFile(conn, TEMP_ENCRYPTED_FILENAME);
 	if ( status < 0 ) return -1;
 	if ( status == 5 ) return 5;
+
+	//if no decryption requested quit early
+	if(!decrypt) return 0; 
 	
+
+	//otherwise check our records to decrypt this file
 	FILERECORD *r = getRecord(filename);
 	if(r == NULL) {
 		printf("No record stored for this file, so no decryption performed.\n");
-		return 1;
+		return -1;
 	}
 	
 	//decrypt the file, and save with it's original name
@@ -203,7 +240,7 @@ int clientDownloadFile(BIO *conn, char *filename, int clientid)  {
 
 	unlink(TEMP_ENCRYPTED_FILENAME);
 	
-	return 1;
+	return 0;
 	
 }
 
@@ -282,30 +319,56 @@ int serverDeleteFile(BIO *conn, int clientid)  {
 }
 
 int clientVerifyFile(BIO *conn, char *filename, int clientid) {
+	//check our records
+	FILERECORD *record = getRecord(filename);
+	if(record == NULL) {
+		fprintf(stderr, "No records stored for %s\n", filename);
+		return -1;
+	}
+
+	//see if we have an "unused" salt and digest on record
+	int index = record->hashIndex[0];
+	if(index == NUM_HASHES) {
+		fprintf(stderr, "All stored digests have been used.\n");
+		fprintf(stderr, "Download the file and refresh them.\n");
+		return -1;
+	}
+
+	unsigned char *hash = record->hashData[index];
+	unsigned char *salt = hash + HASH_LENGTH;
+
+	//send the code which triggers the server to call serverVerifyFile()
 	if(writeInt(conn, VERIFY_FILE_CODE) == -1) return -1;
 
 	//send the filename
 	if(writeString(conn, filename) < 1) return -1;
 
+	//send the salt
+	if(writePacket(conn, (char *)salt, SALT_LENGTH) < 1) return -1;
+
+	//wait for the server to indicate if a digest is coming or not
 	int status = readInt(conn);
 	//if the file does not exist
 	if(status == 5) return 5;
-	//if server failed to calculate hash
+	//if server failed to calculate digest
 	if(status == -1) return -1;
 	
-	//receive a digest
-	char digest[MD5_DIGEST_LENGTH];
-	status = readPacket(conn, digest, sizeof(digest));
+	//receive the digest
+	char serverHash[MD5_DIGEST_LENGTH];
+	status = readPacket(conn, serverHash, sizeof(serverHash));
 	if(status < 1) return -1;
 	
 	//check it against our stored digest
-	FILERECORD *record = getRecord(filename);
-	if(record == NULL) return -1;
-
-	if(memcmp(digest, record->hash, sizeof(digest)) != 0) {
+	if(memcmp(serverHash, hash, sizeof(serverHash)) != 0) {
 		printf("The file digest does not match our records.\n");
 	}
 	else printf("The file digest matches our records.\n");
+
+	++index;
+	printf("You have consumed %d of %d stored digests.\n", index, NUM_HASHES);
+
+	//update the hashIndex for this file
+	updateHashIndex(filename, index);	
 
 	return 0;
 }
@@ -314,6 +377,10 @@ int serverVerifyFile(BIO *conn, int clientid) {
 	//receive the filename
 	char filename[BUFFER_SIZE];
 	if(readString(conn, filename, sizeof(filename)) < 1) return -1;
+
+	//receive the salt
+	unsigned char salt[SALT_LENGTH];
+	if(readPacket(conn, (char *)salt, SALT_LENGTH) < 1) return -1;
 
 	//navigate to the users directory
 	char userDirectory[BUFFER_SIZE];
@@ -331,14 +398,15 @@ int serverVerifyFile(BIO *conn, int clientid) {
 	}
 	fclose(ifp);
 	
-	//calculate a digest OR send -1 if error
-	unsigned char digest[MD5_DIGEST_LENGTH];
-	int status = calculateMD5(filename, digest, NULL, 0);
-	if(status == -1) {
+	//calculate a digest 
+	unsigned char *digest = calculateMD5(filename, salt, SALT_LENGTH);
+	//send -1 if failed to calculate digest
+	if(digest == NULL) {
 		writeInt(conn, -1);
 		return -1;
 	}
 
+	//return to main directory
 	if(chdir("../") != 0) {
 		perror("serverDeleteFile");
 		return -1;
@@ -348,11 +416,74 @@ int serverVerifyFile(BIO *conn, int clientid) {
 	if(writeInt(conn, 0) < 1) return -1;
 
 	//send the digest
-	status = writePacket(conn, (char *)digest, sizeof(digest));
-	if(status < 1) return -1;
-	return status;
+	if(writePacket(conn, (char *)digest, HASH_LENGTH) < 1) return -1;
+
+	return 0;
 }
 
+/* Generate new salt/hash combinations for verification of the given
+ * file.  I.e the client can download their file, then call this function
+ * to give them another NUM_HASHES new verification calls */
+int clientRefreshHashes(BIO *conn, char *filename, int clientid) {
+
+	//download the file from the server (but dont decrypt it)
+	//this saves it as TEMP_ENCRYPTED_FILENAME
+	int status = clientDownloadFile(conn, filename, clientid, 0);
+	if(status != 0) return status;
+
+	//we need to store NUM_HASHES salts and digests for later verification
+	unsigned char *salts[NUM_HASHES];
+	unsigned char *hashes[NUM_HASHES];
+
+	//get the deatils of this file
+	FILERECORD *record = getRecord(filename);
+	if(record == NULL) return -1;
+
+	//check the file matches the hashes we have stored
+	//(to stop the server switching the file on us as we update the hashes)
+	for(int i=0; i < NUM_HASHES; ++i) {
+		unsigned char *recordHash = record->hashData[i];
+		unsigned char *salt = record->hashData[i] + HASH_LENGTH;
+
+		unsigned char *hash = calculateMD5(TEMP_ENCRYPTED_FILENAME, salt, SALT_LENGTH);
+		if(memcmp(recordHash, hash, HASH_LENGTH) != 0) {
+			fprintf(stderr, "Mismatching hash for downloaded file during clientRefreshHashes()\n");
+			free(hash);
+			return -1;
+		}
+		free(hash);
+	}
+
+	//generate new salts and hashes to give us NUM_HASHES more calls to clientVerifyFile
+	for(int i=0; i<NUM_HASHES; ++i) {
+		//generate a random salt
+		salts[i] = randomBytes(SALT_LENGTH);
+		//compute the digest for the file with that salt
+		hashes[i] = calculateMD5(TEMP_ENCRYPTED_FILENAME, salts[i], SALT_LENGTH);
+		if(hashes[i] == NULL) {
+			fprintf(stderr, "Failed to calculate digest in clientRefreshHashes()\n");
+			return -1;
+		}
+	}
+
+	//we no longer need the copy we downloaded
+	unlink(TEMP_ENCRYPTED_FILENAME);
+
+	//update the record with these new hashes and reset the hashIndex
+	status = addRecord(filename, 0, hashes, salts, record->key, record->iv);
+	if(status == -1) {
+		fprintf(stderr, "Failed to update record for %s in clientRefreshHashes()\n", filename);
+		return -1;
+	}
+
+	//free the salts and hashes we generated
+	for(int i=0; i < NUM_HASHES; ++i) {
+		free(salts[i]);
+		free(hashes[i]);
+	}
+	
+	return 0;	
+}
 /*
 int clientWallet(BIO *conn, char *filename, int clientid, EVP_PKEY *privKey)  {
 	if ( writeInt( conn, WALLET_CODE ) == -1) return -1;

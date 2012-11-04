@@ -37,4 +37,6 @@ int addRecord(char *filename, unsigned char hashIndex,  unsigned char **hashes, 
 /* Get a pointer to the record in the database with the given filename */
 FILERECORD *getRecord(char *targetFilename);
 
+int updateHashIndex(char *filename, unsigned char hashIndex); 
+
 int removeRecord(char *targetFilename);

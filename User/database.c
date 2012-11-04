@@ -135,11 +135,10 @@ int addRecord(char *filename, unsigned char hashIndex, unsigned char **hashes, u
 	while(1) {
 		FILERECORD *record = readRecord(db);
 		if(record == NULL) break;
-		long pos = ftell(db);
 
 		if(strcmp(record->filename, filename) == 0) {
 			//jump back to start of record and overwrite
-			if(fseek(db, -RECORD_LENGTH, SEEK_CUR) < 0) {
+			if(fseek(db, -RECORD_LENGTH, SEEK_CUR) == -1) {
 				perror("fseek failed in addRecord");
 				fclose(db);
 				return -1;
@@ -166,6 +165,39 @@ int addRecord(char *filename, unsigned char hashIndex, unsigned char **hashes, u
 	if(status < 0) return status;
 	return 0;
 }
+
+int updateHashIndex(char *filename, unsigned char hashIndex) {
+	FILE *db = fopen(dbFilename, "rb+");
+	if(db == NULL) {
+		perror("updateHashIndex()");
+		return -1;
+	}
+
+	FILERECORD *record;
+	while((record = readRecord(db)) != NULL) {
+		if(strcmp(record->filename, filename) == 0) {
+			//jump to the hashIndex member
+			if(fseek(db, -RECORD_LENGTH + HASH_INDEX_OFFSET, SEEK_CUR) == -1) {
+				perror("fseek() failed in updateHashIndex()");
+				fclose(db);
+				return -1;
+			}
+
+			//update the hash index
+			int numWritten = fwrite(&hashIndex, 1, 1, db);
+			if(numWritten != 1) {
+				perror("updateHashIndex()\n");
+				fclose(db);
+				return -1;
+			}
+			break;
+		}
+	}
+
+	fclose(db);
+	return 0;
+}
+	
 
 int removeRecord(char *targetFilename) {
 	//open the database
@@ -283,6 +315,7 @@ int printDatabase() {
 
 
 
+/*
 int main(int argc, char **argv) {
 	if(argc < 3) {
 		printDatabase();
@@ -299,16 +332,7 @@ int main(int argc, char **argv) {
 			//generate a random salt
 			salts[i] = randomBytes(SALT_LENGTH);
 			//calculate hash and store in hashes[i]
-			hashes[i] = malloc(HASH_LENGTH);
-			if(hashes[i] == NULL) {
-				fprintf(stderr, "malloc() failed in main()\n");
-				exit(EXIT_FAILURE);
-			}
-			int status = calculateMD5(filename, hashes[i], salts[i], SALT_LENGTH);
-			if(status == -1) {
-				printf("\tFailed to calculate hash.\n");
-			}
-
+			hashes[i] = calculateMD5(filename, salts[i], SALT_LENGTH);
 		}
 
 		//generate key and iv
@@ -326,5 +350,9 @@ int main(int argc, char **argv) {
 	else if(strcmp(command, "rm") == 0) {
 		removeRecord(filename);
 	}
+	else if(strcmp(command, "inc") == 0) {
+		updateHashIndex(filename, 7);
+	}
 
 }
+*/

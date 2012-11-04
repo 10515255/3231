@@ -6,7 +6,7 @@
 #include "database.h"
 #include "../Cloud/cloudProtocol.h"
 
-#define MAX_COMMAND_SIZE 512 
+#define MAX_COMMAND_SIZE 1024 
 
 #define TRUST_STORE "Certs/trustStore.pem"
 
@@ -37,7 +37,7 @@ int handleServer(BIO *server) {
 		}
 		else if (strncmp(buffer, "download ", 9) == 0)  {
 			char *filename = buffer + 9;
-			int status = clientDownloadFile(server, filename, userid);
+			int status = clientDownloadFile(server, filename, userid, 1);
 			printf("clientDownloadFile(): %d\n", status);
 			if ( status == 5 ) printf("File not found. Try ls to check your files.\n");
 		}
@@ -50,6 +50,12 @@ int handleServer(BIO *server) {
 			char *filename = buffer + 7;
 			int status = clientDeleteFile(server, filename, userid);
 			if ( status < 0 || status == 5) printf("File does not exist\n");
+		}
+		else if(strncmp(buffer, "refresh ", 8) == 0) {
+			char *filename = buffer + 8;
+			int status = clientRefreshHashes(server, filename, userid);
+			if( status == -1) printf("Failed to refresh hashes for %s\n", filename);
+			else printf("Successfully generated %d new hashes for %s\n", NUM_HASHES, filename);
 		}
 		/*
 		else if (strncmp(buffer, "wallet ", 7) == 0)  {

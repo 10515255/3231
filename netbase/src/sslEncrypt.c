@@ -294,7 +294,7 @@ int decryptFile(char *filename, char *outFile, unsigned char *key, unsigned char
 	return 0;
 }
 
-int calculateMD5(char *filename, unsigned char *hash, unsigned char *salt, int saltSize) {
+unsigned char *calculateMD5(char *filename, unsigned char *salt, int saltSize) {
 	EVP_MD_CTX *ctx = EVP_MD_CTX_create();
 	EVP_DigestInit_ex(ctx, EVP_md5(), NULL);
 
@@ -307,9 +307,10 @@ int calculateMD5(char *filename, unsigned char *hash, unsigned char *salt, int s
 	FILE *ifp = fopen(filename, "rb");
 	if(ifp == NULL) {
 		perror(filename);
-		return -1;
+		return NULL;
 	}
 
+	//run the file through the digester a chunk at a time
 	int fileSize = sizeOfFile(filename);
 	char buffer[BUFSIZ];
 	while(fileSize > 0) {
@@ -318,7 +319,7 @@ int calculateMD5(char *filename, unsigned char *hash, unsigned char *salt, int s
 		if(numRead != amount) {
 			perror("fread() in calculateMD5()");
 			fclose(ifp);
-			return -1;
+			return NULL;
 		}
 		//run each chunk through the digester
 		EVP_DigestUpdate(ctx, buffer, numRead);
@@ -327,12 +328,17 @@ int calculateMD5(char *filename, unsigned char *hash, unsigned char *salt, int s
 	}
 	fclose(ifp);
 
-	//finalize the digest and put it in the argument buffer
+	//allocate space for the digest, and store the final digest in it
+	unsigned char *hash = malloc(MD5_DIGEST_LENGTH);
+	if(hash == NULL) {
+		fprintf(stderr, "malloc() failed in calculateMD5()\n");
+		exit(EXIT_FAILURE);
+	}
 	unsigned int digestSize = 0;
 	EVP_DigestFinal(ctx, hash, &digestSize);
 
 	EVP_MD_CTX_destroy(ctx);
-	return 0;
+	return hash;
 }
 
 /* Load an RSA structure with the contents of the given file,

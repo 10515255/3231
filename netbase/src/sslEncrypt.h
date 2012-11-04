@@ -47,7 +47,7 @@ int decryptFile(char *filename, char *outFile, unsigned char *key, unsigned char
  * argument buffer "hash", which should be MD5_DIGEST_LENGTH in size.
  * If salt is not NULL its contents will be pushed in ahead of the file
  * contents. */
-int calculateMD5(char *filename,unsigned char *hash,  unsigned char *salt, int saltSize);
+unsigned char *calculateMD5(char *filename, unsigned char *salt, int saltSize);
 
 /* Load a private key from file into an EVP_PKEY structure */
 EVP_PKEY *loadPrivateKey(char *filename);

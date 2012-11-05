@@ -13,6 +13,7 @@
 #include "cloudProtocol.h"
 #include "database.h"
 #include "../User/database.h"
+#include "../Bank/dollars.h"
 
 #include <openssl/md5.h>
 
@@ -585,8 +586,14 @@ int serverAddToWallet(BIO *conn, int clientid, EVP_PKEY *clientKey)  {
 	    return 0;
 	}
 	*/
-	if(verified) printf("Thats a good cloud dollar!\n");
-	else printf("That cloud dollar wasn't signed by the right guy!\n");
+	if(verified) printf("Thats was signed by the bank!\n");
+	else printf("That wasn't signed by the bank!\n");
+
+	int serial;
+	int amount;
+	int user;
+	status = getDollarData(TEMP_DOLLAR_FILENAME, &serial, &amount, &user);
+	printf("DOLLAR DATA %d %d %d\n", serial, amount, user);
 
 	return 0;
 }

@@ -4,8 +4,8 @@ NETBASE = ../netbase/libnetbase.a
 LINKNETBASE = -L"../netbase" -lnetbase
 GCC = gcc -g -std=c99 -Wall -Werror -pedantic
 
-OBJ = user.o database.o ../Cloud/cloudProtocol.o ../Cloud/database.o
-HEADERS = database.h
+OBJ = user.o database.o ../Cloud/cloudProtocol.o ../Cloud/database.o ../Bank/dollars.o
+HEADERS = database.h 
 
 $(PROJ) : $(OBJ) $(HEADERS) $(NETBASE) bankUser
 	$(GCC) -o $(PROJ) $(OBJ) $(LINKNETBASE) -lssl
@@ -21,6 +21,9 @@ database.o : database.c
 
 ../Cloud/database.o : ../Cloud/database.c ../Cloud/database.h
 	$(GCC) -o ../Cloud/database.o -c ../Cloud/database.c
+
+../Bank/dollars.o : ../Bank/dollars.c ../Bank/dollars.h
+	$(GCC) -o ../Bank/dollars.o -c ../Bank/dollars.c
 
 bankUser : bankUser.c
 	gcc -std=c99 -o bankUser bankUser.c -L"../netbase" -lnetbase -lssl

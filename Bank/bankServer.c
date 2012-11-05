@@ -6,6 +6,7 @@
 
 #include "../netbase/netbase.h"
 #include "bankServer.h"
+#include "dollars.h"
 #include "database.h"
 
 #define MAX_FILE_SIZE 1024
@@ -26,34 +27,6 @@ int loadKeys() {
 
 	if(privateKey == NULL || publicKey == NULL) return -1;
 	return 0;
-}
-
-/* Build a cloud dollar.  The first NOTE_SIZE contains the data
- * of the note itself, plus some random bytes to fill up the rest.
- * The last SIG_SIZE bytes are a signature of the first part. */
-unsigned char *buildCloudDollar(int serial, int amount, int userid) {
-	unsigned char *cloudDollar = randomBytes(CLOUD_DOLLAR_SIZE);
-	if(cloudDollar == NULL) return NULL;
-
-	//write the first part of the note
-	snprintf(cloudDollar, NOTE_SIZE, "This is a certified cloud cheque issued by CLOUD BANK.\nSerial: %010d\nAmount: %010d\nUser: %010d\n", serial, amount, userid); 
-
-	int sigLength;
-	//sign the note part of the cloud dollar
-	char *signature = signData(cloudDollar, NOTE_SIZE, privateKey, &sigLength);
-	if(sigLength != SIG_SIZE) {
-		fprintf(stderr, "Warning: Signature in buildCloudDollar() was not expected size.\n");
-		fprintf(stderr, "Was %d bytes\n", sigLength);
-	}
-	memcpy(cloudDollar + NOTE_SIZE, signature, SIG_SIZE);	
-
-	return cloudDollar;
-}
-
-int verifyCloudDollar(unsigned char *cloudDollar) {
-	int verified = verifyData(cloudDollar, NOTE_SIZE, cloudDollar + NOTE_SIZE, SIG_SIZE, publicKey);
-
-	return verified;
 }
 
 int serverGetBalance(BIO *conn, int userid)  {
@@ -85,7 +58,7 @@ int serverWithdraw(BIO *conn, int userid)  {
 
 	//update the users balance, and build a cloud cheque for the amount
 	updateBalance(userid, balance - amount);
-	unsigned char* cheque = buildCloudDollar( serialNumber, amount, userid );
+	unsigned char* cheque = buildCloudDollar( serialNumber, amount, userid, privateKey );
 	serialNumber++;
 
 	//send the cloud cheque to the user

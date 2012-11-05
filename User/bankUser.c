@@ -7,6 +7,7 @@
 #include "../Cloud/cloudProtocol.h"
 
 #include "../Bank/bankServer.h"
+#include "../Bank/dollars.h"
 
 #define MAX_COMMAND_SIZE 512 
 

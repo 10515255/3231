@@ -10,6 +10,7 @@
 #define TRUST_STORE "Certs/1Cert.pem"
 #define SERVER_CERTIFICATE "Certs/cloudCert.pem"
 #define SERVER_PRIVKEY "Certs/cloudPrivateKey.pem"
+#define BANK_PUBKEY "Certs/bankPublicKey.pem"
 
 
 int handleClient(BIO *client) {	
@@ -26,6 +27,13 @@ int handleClient(BIO *client) {
 		fprintf(stderr, "Failed to load public key %s\n", userKeyFilename);
 		return -1;
 	}
+	
+	//load the bank's public key
+	EVP_PKEY *bankKey = loadPublicKey(BANK_PUBKEY);
+	if(bankKey == NULL) {
+		fprintf(stderr, "Failed to load public key %s\n", BANK_PUBKEY);
+		return -1;
+	}
 
 	/* Accept commands codes from the client program to determine which 
 	 * functionality of the protocol is being initiate. */
@@ -33,7 +41,7 @@ int handleClient(BIO *client) {
 		int commandCode = readInt(client);
 		if(commandCode == -1) return -1;
 
-		if(respondToCommand(client, commandCode, userid, userKey) == -1) return -1;
+		if(respondToCommand(client, commandCode, userid, userKey, bankKey) == -1) return -1;
 	}
 
 

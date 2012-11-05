@@ -27,9 +27,18 @@ unsigned char *buildCloudDollar(int serial, int amount, int userid, EVP_PKEY *pr
 	return cloudDollar;
 }
 
-int verifyCloudDollar(unsigned char *cloudDollar, EVP_PKEY *publicKey) {
+int verifyCloudDollar(char *cloudDollarFile, EVP_PKEY *publicKey) {
+	//load the file into a buffer
+	int fileSize = -1;
+	unsigned char *cloudDollar = loadFile(cloudDollarFile, &fileSize);
+
+	//make sure the first line matches
+	if(strncmp((char *)cloudDollar, DOLLAR_FIRST_LINE, strlen(DOLLAR_FIRST_LINE)) != 0) return -1;
+
 	int verified = verifyData(cloudDollar, NOTE_SIZE, cloudDollar + NOTE_SIZE, SIG_SIZE, publicKey);
-	return verified;
+	if(!verified) return -2;
+
+	return 0;
 }
 
 int getDollarData(char *cloudDollar, int *serial, int *amount, int *user) {
@@ -43,11 +52,13 @@ int getDollarData(char *cloudDollar, int *serial, int *amount, int *user) {
 	//read first line
 	fgets(buffer, sizeof(buffer), dollar);
 	int numMatched = fscanf(dollar, "Serial: %010d\nAmount: %010d\nUser: %010d", serial, amount, user);
-	if(numMatched != 1) {
+	if(numMatched != 3) {
 		perror("getSerial()");
 		fclose(dollar);
 		return -1;
 	}
+
+	fclose(dollar);
 
 	return 0;
 }

@@ -1,3 +1,4 @@
 #define GET_BALANCE_CODE 1
 #define WITHDRAW_CODE 2
+#define CASH_CHEQUE_CODE 3
 

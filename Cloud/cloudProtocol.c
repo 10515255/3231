@@ -550,7 +550,7 @@ int clientAddToWallet(BIO *conn, char *dollarFile, EVP_PKEY *privKey)
 
 }
 
-int serverAddToWallet(BIO *conn, int clientid, EVP_PKEY *clientKey)  {
+int serverAddToWallet(BIO *conn, int clientid, EVP_PKEY *clientKey, EVP_PKEY *bankKey)  {
 	//receive the filename of the cloud dollar
 	char filename[BUFFER_SIZE];
 	if(readString(conn, filename, sizeof(filename)) < 1) return -1;
@@ -565,6 +565,7 @@ int serverAddToWallet(BIO *conn, int clientid, EVP_PKEY *clientKey)  {
 	int sigSize = status;
 	printf("Signature had size %d\n", sigSize);
 	
+	//verify the user signed the cloud dollar
 	int verified = verifyFile(TEMP_DOLLAR_FILENAME, (unsigned char*)signature, sigSize, clientKey);
 	/*
 	if ( verified)  {
@@ -586,8 +587,15 @@ int serverAddToWallet(BIO *conn, int clientid, EVP_PKEY *clientKey)  {
 	    return 0;
 	}
 	*/
-	if(verified) printf("Thats was signed by the bank!\n");
-	else printf("That wasn't signed by the bank!\n");
+	if(verified) printf("That was signed by you!\n");
+	else printf("That wasn't signed by you!\n");
+
+	//verify the cloud dollar is signed by the bank
+	verified = verifyCloudDollar(TEMP_DOLLAR_FILENAME, bankKey); 
+	if(verified < 0) {
+		printf("That wasn't a valid cloud dollar.\n");
+	}
+	else printf("That was a valid cloud dollar.\n");
 
 	int serial;
 	int amount;
@@ -595,13 +603,19 @@ int serverAddToWallet(BIO *conn, int clientid, EVP_PKEY *clientKey)  {
 	status = getDollarData(TEMP_DOLLAR_FILENAME, &serial, &amount, &user);
 	printf("DOLLAR DATA %d %d %d\n", serial, amount, user);
 
+
+	//sign it ourselves (bank wont cash it unless two sigs)
+	//send both sigs + note to bank
+
+
 	return 0;
 }
 
 
+
 /* The server receives a command code, branch to the 
  * appropriate part of the protocol */
-int respondToCommand(BIO *conn, int code, int clientid, EVP_PKEY *clientKey) {
+int respondToCommand(BIO *conn, int code, int clientid, EVP_PKEY *clientKey, EVP_PKEY *bankPublicKey) {
 	printf("Server received command %d\n", code);
 	int status;
 	switch(code) {
@@ -624,7 +638,7 @@ int respondToCommand(BIO *conn, int code, int clientid, EVP_PKEY *clientKey) {
 			status = serverWalletBalance(conn, clientid);
 			break;
 		case FILL_WALLET_CODE:
-			status = serverAddToWallet(conn, clientid, clientKey);
+			status = serverAddToWallet(conn, clientid, clientKey, bankPublicKey);
 			break;
 		default:
 			status = 0;

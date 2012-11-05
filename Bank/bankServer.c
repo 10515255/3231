@@ -31,7 +31,7 @@ int loadKeys() {
 
 int serverGetBalance(BIO *conn, int userid)  {
 	int balance = getBalance(userid);
-	
+
 	if ( writeInt(conn, balance) == -1 ) return -1;
 	if(balance == -1) return -1;
 	return 0;
@@ -50,8 +50,8 @@ int serverWithdraw(BIO *conn, int userid)  {
 
 	//send error code to indicate withdrawal not going ahead
 	if ( status < 0 )  {
-	    writeInt(conn, status);
-	    return -1;
+		writeInt(conn, status);
+		return -1;
 	}
 	//send 0 to indicate withdrawal going ahead
 	if (  writeInt(conn, 0) == -1 ) return -1;
@@ -65,10 +65,13 @@ int serverWithdraw(BIO *conn, int userid)  {
 	status = writePacket( conn, cheque, CLOUD_DOLLAR_SIZE );
 	free(cheque);
 	if ( status < 0 )  {
-	    return -1;
+		return -1;
 	}
 
 	return 0;
+}
+
+int serverCashCheque(BIO *conn, int userid) {
 }
 
 int handleClient(BIO *client) {	
@@ -88,21 +91,25 @@ int handleClient(BIO *client) {
 		int status = 0;
 
 		switch (commandCode)  {
-		  case GET_BALANCE_CODE:
-		    printf("User %d requested a balance.\n");
-		    status = serverGetBalance(client, userid);
-			if(status == -1) printf("serverGetBalance() failed.\n");
-			else printf("Success.\n");
-		    break;
-		  case WITHDRAW_CODE:
-		    printf("User %d wants to withdraw money.\n");
-		    status = serverWithdraw(client, userid);
-			if(status == -1) printf("serverWithdraw() failed.\n");
-			else printf("Success\n");
-		    break;
-		  default:
-		    printf("Unrecognised command\n");
-		    break;
+			case GET_BALANCE_CODE:
+				printf("User %d requested a balance.\n");
+				status = serverGetBalance(client, userid);
+				if(status == -1) printf("serverGetBalance() failed.\n");
+				else printf("Success.\n");
+				break;
+			case WITHDRAW_CODE:
+				printf("User %d wants to withdraw money.\n");
+				status = serverWithdraw(client, userid);
+				if(status == -1) printf("serverWithdraw() failed.\n");
+				else printf("Success\n");
+				break;
+			case CASH_CHEQUE_CODE:
+				printf("User %d want to cash a cheque.\n");
+				status = serverCashCheque(client, userid);
+				break;
+			default:
+				printf("Unrecognised command\n");
+				break;
 		}
 	}
 

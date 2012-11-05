@@ -21,7 +21,7 @@
 #define TEMP_ENCRYPTED_FILENAME "tempEncrypted.file"
 #define TEMP_DOLLAR_FILENAME "cloudDollar.file"
 
-#define USER_FILE_FOLDER "Files"
+#define USER_FILE_FOLDER "Users"
 
 #define BUFFER_SIZE 1024
 #define MEGABYTE (1024*1024)
@@ -42,14 +42,15 @@
  * by newlines. */
 int listFiles(char *buffer, int maxLength, int clientid) {
 	char dirname[BUFFER_SIZE];
-	snprintf(dirname, sizeof(dirname), "./%d/", clientid);
+	snprintf(dirname, sizeof(dirname), "./%s/%d/", USER_FILE_FOLDER, clientid);
 	DIR *dir = opendir(dirname);
 	if(dir == NULL) return -1;
 
 	buffer[0] = '\0';
 	struct dirent *entry = NULL;
 	while((entry = readdir(dir)) != NULL) {
-		if(entry->d_type != DT_REG) continue;
+		if(entry->d_type != DT_REG) continue;//only view regular files
+		if(entry->d_name[0] == '.') continue;//don't view hidden files
 		//need to fit the name and a newline onto end of our buffer
 		int spaceRequired = strlen(entry->d_name) + 1;
 		if(spaceRequired > maxLength) break;	
@@ -168,7 +169,7 @@ int clientUploadFile(BIO *conn, char *filename) {
 	//send the file
 	if(writeFile(conn, TEMP_ENCRYPTED_FILENAME, filename) < 1) return -1;
 	unlink( TEMP_ENCRYPTED_FILENAME );
-	printf("Client succesfully uploaded the file.\n");
+	printf("Succesfully uploaded the file.\n");
 	return 0;
 }
 
@@ -195,7 +196,7 @@ int serverUploadFile(BIO *conn, int clientid) {
 	if(status < 0) return status;
 	
 	char userDirectory[BUFFER_SIZE];
-	snprintf(userDirectory, sizeof(userDirectory), "./%d/", clientid);
+	snprintf(userDirectory, sizeof(userDirectory), "./%s/%d/", USER_FILE_FOLDER, clientid);
 	if(chdir(userDirectory) != 0) {
 		perror("serverUploadFile");
 		return -1;
@@ -204,12 +205,14 @@ int serverUploadFile(BIO *conn, int clientid) {
 
 	//receive the file, save it with whatever name the client uses
 	status = recvFile(conn, NULL);
-	if(chdir("../") != 0) {
+	if(chdir("../../") != 0) {
 		perror("serverUploadFile");
 		return -1;
 	}
 
-	if(status < 1) return -1;
+	//update their balance
+	if(updateBalance(clientid, userBalance - cost) == -1) return -1;
+
 	return 1;
 }
 
@@ -223,9 +226,15 @@ int clientDownloadFile(BIO *conn, char *filename, int decrypt)  {
 	
 	//send the server the filename we want to download
 	if ( writeString(conn, filename) < 1 ) return -1;
+
+	int status = readInt(conn);
+	if(status == -1) {
+		printf("No such file %s\n", filename);
+		return 0;
+	}
 	
 	//receive the encrypted file, save to temporary file
-	int status = recvFile(conn, TEMP_ENCRYPTED_FILENAME);
+	status = recvFile(conn, TEMP_ENCRYPTED_FILENAME);
 	if ( status < 0 ) return -1;
 	if ( status == 5 ) return 5;
 
@@ -245,6 +254,7 @@ int clientDownloadFile(BIO *conn, char *filename, int decrypt)  {
 	if ( status < 0 ) return -1;
 
 	unlink(TEMP_ENCRYPTED_FILENAME);
+	printf("Successfully downloaded %s\n", filename);
 	
 	return 0;
 	
@@ -253,7 +263,7 @@ int clientDownloadFile(BIO *conn, char *filename, int decrypt)  {
 int serverDownloadFile(BIO *conn, int clientid)  {
 
 	char userDirectory[BUFFER_SIZE];
-	snprintf(userDirectory, sizeof(userDirectory), "./%d/", clientid);
+	snprintf(userDirectory, sizeof(userDirectory), "./%s/%d/",USER_FILE_FOLDER, clientid);
 	if(chdir(userDirectory) != 0) {
 		perror("serverDownloadFile");
 		return -1;
@@ -261,11 +271,19 @@ int serverDownloadFile(BIO *conn, int clientid)  {
   
 	char filename[BUFFER_SIZE];
 	if ( readString( conn, filename, sizeof(filename) ) < 1 ) return -1;
-	
+
+	//check the file exists first, and send an int indicating if we continue
+	FILE *test =fopen(filename, "r");	
+	if(test == NULL) {
+		writeInt(conn, -1);
+		chdir("../../");
+		return 0;
+	}
+	fclose(test);
+	writeInt(conn, 0);
 	
 	int status = writeFile(conn, filename, TEMP_ENCRYPTED_FILENAME);
-	
-	if(chdir("../") != 0) {
+	if(chdir("../../") != 0) {
 		perror("serverDownloadFile");
 		return -1;
 	}
@@ -287,6 +305,8 @@ int clientDeleteFile(BIO *conn, char *filename)  {
 
 	//remove this file's record from our database
 	removeRecord(filename);
+
+	printf("Successfully deleted %s\n", filename);
 	
 	return 0;
 	
@@ -294,7 +314,7 @@ int clientDeleteFile(BIO *conn, char *filename)  {
 
 int serverDeleteFile(BIO *conn, int clientid)  {
 	char userDirectory[BUFFER_SIZE];
-	snprintf(userDirectory, sizeof(userDirectory), "./%d/", clientid);
+	snprintf(userDirectory, sizeof(userDirectory), "./%s/%d/", USER_FILE_FOLDER, clientid);
 	if(chdir(userDirectory) != 0) {
 		perror("serverDeleteFile");
 		return -1;
@@ -314,7 +334,7 @@ int serverDeleteFile(BIO *conn, int clientid)  {
 		status = 0;
 	}
 	
-	if(chdir("../") != 0) {
+	if(chdir("../../") != 0) {
 		perror("serverDeleteFile");
 		return -1;
 	}
@@ -390,7 +410,7 @@ int serverVerifyFile(BIO *conn, int clientid) {
 
 	//navigate to the users directory
 	char userDirectory[BUFFER_SIZE];
-	snprintf(userDirectory, sizeof(userDirectory), "./%d/", clientid);
+	snprintf(userDirectory, sizeof(userDirectory), "./%s/%d/", USER_FILE_FOLDER, clientid);
 	if(chdir(userDirectory) != 0) {
 		perror("serverDeleteFile");
 		return -1;
@@ -413,7 +433,7 @@ int serverVerifyFile(BIO *conn, int clientid) {
 	}
 
 	//return to main directory
-	if(chdir("../") != 0) {
+	if(chdir("../../") != 0) {
 		perror("serverDeleteFile");
 		return -1;
 	}
@@ -488,8 +508,8 @@ int clientRefreshHashes(BIO *conn, char *filename) {
 		free(hashes[i]);
 	}
 
-	printf("Verified the file (all %d digests match)\n", NUM_HASHES);
-	printf("Generated %d new digests.\n", NUM_HASHES);
+	printf("Verified the file (all %d digests match),\n", NUM_HASHES);
+	printf("and generated %d new digests.\n", NUM_HASHES);
 	
 	return 0;	
 }
@@ -523,6 +543,14 @@ int serverWalletBalance(BIO *conn, int clientid) {
 /* Add money to the clients cloud account, using the cloud bank dollar. */
 int clientAddToWallet(BIO *conn, char *dollarFile, EVP_PKEY *privKey)  
 {
+	//check if the file is valid
+	FILE *test = fopen(dollarFile, "r");
+	if(test == NULL) {
+		perror(dollarFile);
+		return -1;
+	}
+	fclose(test);
+
 	//the client signs the cloud dollar file
 	unsigned int sigLength;
 	unsigned char* signature = signFile(dollarFile, privKey, &sigLength);
@@ -553,7 +581,7 @@ int clientAddToWallet(BIO *conn, char *dollarFile, EVP_PKEY *privKey)
 		return -1;
 	}
 
-	printf("%d was added to your cloud balance.\n", status);
+	printf("Added %d dollar(s) to your cloud balance.\n", status);
 	//delete the cloud dollar file??
 	
 	return 0;
@@ -572,32 +600,30 @@ int serverAddToWallet(BIO *conn, int clientid, EVP_PKEY *clientKey, EVP_PKEY *ba
 	//verify the cloud dollar is real (signed by the bank and right string)
 	int verified = verifyCloudDollar(TEMP_DOLLAR_FILENAME, bankKey); 
 	if(verified < 0) {
-		printf("Received an INVALID cloud dollar.\n");
+		printf("\tReceived an INVALID cloud dollar.\n");
 
 		//inform user of probelm
 		writeInt(conn, -2);
-		return -1;
+		return 0;
 	}
-	else printf("Recieved a valid cloud dollar.\n");
+	else printf("\tRecieved a valid cloud dollar.\n");
 
 	int serial;
 	int amount;
 	int user;
 	status = getDollarData(TEMP_DOLLAR_FILENAME, &serial, &amount, &user);
-	printf("DOLLAR DATA %d %d %d\n", serial, amount, user);
 	
 	//verify the user signed the cloud dollar
 	verified = verifyFile(TEMP_DOLLAR_FILENAME, (unsigned char*)signature, sigSize, clientKey);
 	if(!verified) {
-		printf("Received INVALID signature for the cloud dollar.\n");
+		printf("\tReceived INVALID signature for the cloud dollar.\n");
 		//infomr user of promebl
 		writeInt(conn, -3);
-		return -1;
+		return 0;
 	}
-	else printf("Received a valid signature from %d\n", clientid);
+	else printf("\tReceived a valid signature from %d\n", clientid);
 
 	//all valid, so up their balance
-	printf("Going to pudate hier abalnce\n");
 	int balance = getBalance(clientid);
 	status = updateBalance(clientid, balance + amount);
 	if(status == -1) {

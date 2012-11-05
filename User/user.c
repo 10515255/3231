@@ -20,6 +20,8 @@ void stripNewline(char *string) {
 int handleServer(BIO *server) {
 	if(writeInt(server, userid) == -1) return -1;
 
+	printf("You are connect to the CLOUD PROVIDER\n");
+
 	char buffer[MAX_COMMAND_SIZE];
 	while(fgets(buffer, sizeof(buffer), stdin) != NULL) {
 		stripNewline(buffer);
@@ -36,7 +38,6 @@ int handleServer(BIO *server) {
 		else if (strncmp(buffer, "download ", 9) == 0)  {
 			char *filename = buffer + 9;
 			int status = clientDownloadFile(server, filename, 1);
-			printf("clientDownloadFile(): %d\n", status);
 			if ( status == 5 ) printf("File not found. Try ls to check your files.\n");
 		}
 		else if(strncmp(buffer, "verify ", 7) == 0) {
@@ -57,8 +58,7 @@ int handleServer(BIO *server) {
 		}
 		else if (strncmp(buffer, "wallet ", 7) == 0)  {
 			char *filename = buffer + 7;
-			int status = clientAddToWallet(server, filename, privKey);
-			printf("Wallet %d\n", status);
+			clientAddToWallet(server, filename, privKey);
 		}
 		else if(strcmp(buffer, "quit") == 0) {
 			break;

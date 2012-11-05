@@ -13,3 +13,5 @@ bankUser
 cheque
 files.db
 users.txt
+*.file
+*.pdf

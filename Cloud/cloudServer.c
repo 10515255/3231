@@ -40,7 +40,6 @@ int handleClient(BIO *client) {
 	while(1) {
 		int commandCode = readInt(client);
 		if(commandCode == -1) return -1;
-
 		if(respondToCommand(client, commandCode, userid, userKey, bankKey) == -1) return -1;
 	}
 

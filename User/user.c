@@ -76,6 +76,7 @@ int handleServer(BIO *server) {
 			return -1;
 		}
 		*/
+		printf("**********************\n");
 	}
 
 	return 0;

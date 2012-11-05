@@ -21,7 +21,7 @@
 #define TEMP_ENCRYPTED_FILENAME "tempEncrypted.file"
 #define TEMP_DOLLAR_FILENAME "cloudDollar.file"
 
-#define USER_FILE_FOLDER "Users"
+#define SERVER_FILE_FOLDER "Users"
 
 #define BUFFER_SIZE 1024
 #define MEGABYTE (1024*1024)
@@ -42,7 +42,7 @@
  * by newlines. */
 int listFiles(char *buffer, int maxLength, int clientid) {
 	char dirname[BUFFER_SIZE];
-	snprintf(dirname, sizeof(dirname), "./%s/%d/", USER_FILE_FOLDER, clientid);
+	snprintf(dirname, sizeof(dirname), "./%s/%d/", SERVER_FILE_FOLDER, clientid);
 	DIR *dir = opendir(dirname);
 	if(dir == NULL) return -1;
 
@@ -52,9 +52,9 @@ int listFiles(char *buffer, int maxLength, int clientid) {
 		if(entry->d_type != DT_REG) continue;//only view regular files
 		if(entry->d_name[0] == '.') continue;//don't view hidden files
 		//need to fit the name and a newline onto end of our buffer
-		int spaceRequired = strlen(entry->d_name) + 1;
+		int spaceRequired = strlen(entry->d_name) + 2;
 		if(spaceRequired > maxLength) break;	
-		snprintf(buffer, maxLength, "%s\n", entry->d_name);
+		snprintf(buffer, maxLength, "\t%s\n", entry->d_name);
 		maxLength -= spaceRequired;
 		buffer += spaceRequired;
 	}
@@ -79,7 +79,8 @@ int clientListFiles(BIO *conn) {
 	if(readPacket(conn, buffer, sizeof(buffer)) < 1) return -1;
 
 	//display the file listing
-	printf("%s\n", buffer);
+	printf("Your files:\n");
+	printf("%s", buffer);
 	
 	return 1;
 }
@@ -158,10 +159,14 @@ int clientUploadFile(BIO *conn, char *filename) {
 	int fileSize = sizeOfFile(TEMP_ENCRYPTED_FILENAME);
 	if(writeInt(conn, fileSize) == -1) return -1;
 
+	printf("NOTE: Original size: %f MB. Encrypted size: %f MB.\n", (double)sizeOfFile(filename)/MEGABYTE, (double)fileSize/MEGABYTE);
+
+
 	//wait for an int telling us the balance owing
 	unsigned int fee = readInt(conn);
 	if(fee > 0) {
 		printf("Purchase %d more cloud dollar(s) to upload this file.\n", fee);
+		removeRecord(filename);
 		return -1;
 	}
 	else if(fee < 0) return -1;
@@ -196,7 +201,7 @@ int serverUploadFile(BIO *conn, int clientid) {
 	if(status < 0) return status;
 	
 	char userDirectory[BUFFER_SIZE];
-	snprintf(userDirectory, sizeof(userDirectory), "./%s/%d/", USER_FILE_FOLDER, clientid);
+	snprintf(userDirectory, sizeof(userDirectory), "./%s/%d/", SERVER_FILE_FOLDER, clientid);
 	if(chdir(userDirectory) != 0) {
 		perror("serverUploadFile");
 		return -1;
@@ -263,7 +268,7 @@ int clientDownloadFile(BIO *conn, char *filename, int decrypt)  {
 int serverDownloadFile(BIO *conn, int clientid)  {
 
 	char userDirectory[BUFFER_SIZE];
-	snprintf(userDirectory, sizeof(userDirectory), "./%s/%d/",USER_FILE_FOLDER, clientid);
+	snprintf(userDirectory, sizeof(userDirectory), "./%s/%d/",SERVER_FILE_FOLDER, clientid);
 	if(chdir(userDirectory) != 0) {
 		perror("serverDownloadFile");
 		return -1;
@@ -314,7 +319,7 @@ int clientDeleteFile(BIO *conn, char *filename)  {
 
 int serverDeleteFile(BIO *conn, int clientid)  {
 	char userDirectory[BUFFER_SIZE];
-	snprintf(userDirectory, sizeof(userDirectory), "./%s/%d/", USER_FILE_FOLDER, clientid);
+	snprintf(userDirectory, sizeof(userDirectory), "./%s/%d/", SERVER_FILE_FOLDER, clientid);
 	if(chdir(userDirectory) != 0) {
 		perror("serverDeleteFile");
 		return -1;
@@ -410,7 +415,7 @@ int serverVerifyFile(BIO *conn, int clientid) {
 
 	//navigate to the users directory
 	char userDirectory[BUFFER_SIZE];
-	snprintf(userDirectory, sizeof(userDirectory), "./%s/%d/", USER_FILE_FOLDER, clientid);
+	snprintf(userDirectory, sizeof(userDirectory), "./%s/%d/", SERVER_FILE_FOLDER, clientid);
 	if(chdir(userDirectory) != 0) {
 		perror("serverDeleteFile");
 		return -1;

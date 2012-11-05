@@ -12,7 +12,7 @@
 #define MAX_FILE_SIZE 1024
 #define BUFFER_SIZE 1024
 
-#define TRUST_STORE "Certs/1Cert.pem"
+#define TRUST_STORE "Certs/trustStore.pem"
 #define SERVER_CERTIFICATE "Certs/bankCert.pem"
 #define SERVER_PRIVKEY "Certs/bankPrivateKey.pem"
 #define SERVER_PUBKEY "Certs/bankPublicKey.pem"

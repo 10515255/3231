@@ -7,7 +7,7 @@
 
 #define BUFFER_SIZE 1024 
 
-#define TRUST_STORE "Certs/1Cert.pem"
+#define TRUST_STORE "Certs/trustStore.pem"
 #define SERVER_CERTIFICATE "Certs/cloudCert.pem"
 #define SERVER_PRIVKEY "Certs/cloudPrivateKey.pem"
 #define BANK_PUBKEY "Certs/bankPublicKey.pem"

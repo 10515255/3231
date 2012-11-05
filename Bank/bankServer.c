@@ -65,14 +65,17 @@ int serverGetBalance(BIO *conn, int userid)  {
 }
 
 int serverWithdraw(BIO *conn, int userid)  {
+	//read the amount the user wants to withdraw
 	int amount = readInt(conn);
 	int status = 0;
 	if ( amount < 0 ) status = -1;
 
 	int balance = getBalance(userid);
-	if ( balance < amount ) status = -1;
+	if(balance == -1) status = -1;
+	//check for insufficient funds
+	if ( balance < amount ) status = -2;
 
-	//send negative number to indicate withdrawal not going ahead
+	//send error code to indicate withdrawal not going ahead
 	if ( status < 0 )  {
 	    writeInt(conn, status);
 	    return -1;

@@ -21,8 +21,6 @@ void stripNewline(char *string) {
 	string[strlen(string)-1] = '\0';
 }
 
-
-
 int clientGetBalance(BIO *conn)  {
     if ( writeInt( conn, GET_BALANCE_CODE ) == -1 ) return -1;
     
@@ -31,19 +29,24 @@ int clientGetBalance(BIO *conn)  {
     return balance;
 }
 
-int clientWithdraw(BIO *conn, int amount)  {
+int clientWithdraw(BIO *conn, int amount, char *outFilename)  {
+	//start the server's side of the protocol
 	if ( writeInt( conn, WITHDRAW_CODE ) == -1 ) return -1;
 	
 	// send how much we want to withdraw
 	int status = writeInt(conn, amount);
-	
 	if ( status == -1 ) return -1;
-	unsigned char buffer[CLOUD_DOLLAR_SIZE];
 	
 	// get response
 	status = readInt(conn);
+	if(status == -2) {
+		printf("Insufficient funds. Type \"balance\" to get your balance.");
+		return -1;
+	}
 	if ( status != 0 ) return -1;
 	
+	//read the cloud cheque in as a packet of data
+	unsigned char buffer[CLOUD_DOLLAR_SIZE];
 	status = readPacket(conn, buffer, sizeof(buffer) );
 	if ( status == -1 ) return -1;
 
@@ -51,19 +54,25 @@ int clientWithdraw(BIO *conn, int amount)  {
 	int verified = verifyData(buffer, NOTE_SIZE, buffer+NOTE_SIZE, SIG_SIZE, bankPublicKey);
 	
 	//save the cheque to file
-	status = writeDataToFile( "cheque", buffer, sizeof(buffer) );
+	status = writeDataToFile(outFilename, buffer, sizeof(buffer) );
 	if ( status == -1 ) return -1;
 
-	if(verified) {
-	}
-	else {
+	if(!verified) {
+		printf("Warning: Cloud dollar was not signed by the the cloud bank.\n");
 	}
 
 	return 0;
 }
 
 int handleServer(BIO *server) {
+	//tell the bank who we are
 	if(writeInt(server, userid) == -1) return -1;
+
+	printf("Connected to the CLOUD BANK.\n");
+	printf("Commands:\n");
+	printf("\tbalance\n");
+	printf("\twithdraw amount outfilename\n");
+	printf("\tquit\n");
 
 	char buffer[MAX_COMMAND_SIZE];
 	while(fgets(buffer, sizeof(buffer), stdin) != NULL) {
@@ -76,15 +85,15 @@ int handleServer(BIO *server) {
 		}
 		else if ( strncmp(buffer, "withdraw ", 9) == 0 )  {
 			int amount;
-			int numMatched = sscanf(buffer+9, "%d", &amount);
-			if ( numMatched != 1 || amount < 1)   {
-			    printf("Not a valid amount to withdraw\n");
+			char outFilename[512];
+			int numMatched = sscanf(buffer+9, "%d %s", &amount, outFilename);
+			if ( numMatched != 2 || amount < 1)   {
+			    printf("Usage: withdraw amount outfilename");
 			}
 			else  {
-			      int status = clientWithdraw(server, amount);
+			      int status = clientWithdraw(server, amount, outFilename);
 				  if(status == -1) printf("Failed to withdraw.\n");
-				  if(status == 1) printf("Warning: Received INAVALID cheque.\n");
-				  else printf("Success.\n");
+				  else printf("%d dollars saved in %s\n", amount, outFilename);
 			}
 		}    
 		else if ( strcmp(buffer, "quit") == 0) {

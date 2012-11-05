@@ -18,14 +18,22 @@ int handleClient(BIO *client) {
 	if(userid == -1) return -1;
 	printf("User %d has connected.\n", userid);
 
+	//load their public key
+	char userKeyFilename[BUFFER_SIZE];
+	snprintf(userKeyFilename, sizeof(userKeyFilename), "Certs/%dPublicKey.pem", userid);
+	EVP_PKEY *userKey = loadPublicKey(userKeyFilename);
+	if(userKey == NULL) {
+		fprintf(stderr, "Failed to load public key %s\n", userKeyFilename);
+		return -1;
+	}
+
 	/* Accept commands codes from the client program to determine which 
 	 * functionality of the protocol is being initiate. */
 	while(1) {
 		int commandCode = readInt(client);
 		if(commandCode == -1) return -1;
-		printf("Client: %d\n", commandCode);
 
-		if(respondToCommand(client, commandCode, userid) == -1) return -1;
+		if(respondToCommand(client, commandCode, userid, userKey) == -1) return -1;
 	}
 
 

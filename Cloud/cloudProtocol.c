@@ -18,6 +18,7 @@
 
 //the filename we give files as we encrypt them before uploading
 #define TEMP_ENCRYPTED_FILENAME "tempEncrypted.file"
+#define TEMP_DOLLAR_FILENAME "cloudDollar.file"
 
 #define USER_FILE_FOLDER "Files"
 
@@ -28,11 +29,12 @@
 #define UPLOAD_FILE_CODE 2
 #define DOWNLOAD_FILE_CODE 3
 #define DELETE_FILE_CODE 4
-
 #define VERIFY_FILE_CODE 5
-#define WALLET_CODE 6
+#define REFRESH_HASHES_CODE 6
 
-#define REFRESH_HASHES_CODE 7
+#define WALLET_BALANCE_CODE 7
+#define FILL_WALLET_CODE 8
+
 
 /* Helper function for clientListFiles().  Write the filename
  * of all items in a directory to the given string, separated
@@ -214,7 +216,7 @@ int serverUploadFile(BIO *conn, int clientid) {
  * then the file will not be decrypted, and will be left in TEMP_ENCRYPTED_FILENAME.
  * If decrypt is not 0 then the file will be decrypted according to the clients
  * records and saved under its original name. */
-int clientDownloadFile(BIO *conn, char *filename, int clientid, int decrypt)  {
+int clientDownloadFile(BIO *conn, char *filename, int decrypt)  {
 	//trigger the server to call serverDownloadFile()
 	if(writeInt(conn, DOWNLOAD_FILE_CODE) == -1) return -1;
 	
@@ -272,7 +274,7 @@ int serverDownloadFile(BIO *conn, int clientid)  {
 	return 1;
 }
 
-int clientDeleteFile(BIO *conn, char *filename, int clientid)  {
+int clientDeleteFile(BIO *conn, char *filename)  {
 	if(writeInt(conn, DELETE_FILE_CODE) == -1) return -1;
 	
 	if ( writeString(conn, filename) < 1 ) return -1;
@@ -321,7 +323,7 @@ int serverDeleteFile(BIO *conn, int clientid)  {
 	return status;
 }
 
-int clientVerifyFile(BIO *conn, char *filename, int clientid) {
+int clientVerifyFile(BIO *conn, char *filename) {
 	//check our records
 	FILERECORD *record = getRecord(filename);
 	if(record == NULL) {
@@ -332,8 +334,8 @@ int clientVerifyFile(BIO *conn, char *filename, int clientid) {
 	//see if we have an "unused" salt and digest on record
 	int index = record->hashIndex[0];
 	if(index == NUM_HASHES) {
-		fprintf(stderr, "All stored digests have been used.\n");
-		fprintf(stderr, "Download the file and refresh them.\n");
+		fprintf(stderr, "All stored digests for this file have been consumed.\n");
+		fprintf(stderr, "Type \"refresh %s\" to download the file and generate new digests.\n", filename);
 		return -1;
 	}
 
@@ -427,11 +429,11 @@ int serverVerifyFile(BIO *conn, int clientid) {
 /* Generate new salt/hash combinations for verification of the given
  * file.  I.e the client can download their file, then call this function
  * to give them another NUM_HASHES new verification calls */
-int clientRefreshHashes(BIO *conn, char *filename, int clientid) {
+int clientRefreshHashes(BIO *conn, char *filename) {
 
 	//download the file from the server (but dont decrypt it)
 	//this saves it as TEMP_ENCRYPTED_FILENAME
-	int status = clientDownloadFile(conn, filename, clientid, 0);
+	int status = clientDownloadFile(conn, filename, 0);
 	if(status != 0) return status;
 
 	//we need to store NUM_HASHES salts and digests for later verification
@@ -484,44 +486,86 @@ int clientRefreshHashes(BIO *conn, char *filename, int clientid) {
 		free(salts[i]);
 		free(hashes[i]);
 	}
+
+	printf("Verified the file (all %d digests match)\n", NUM_HASHES);
+	printf("Generated %d new digests.\n", NUM_HASHES);
 	
 	return 0;	
 }
-/*
-int clientWallet(BIO *conn, char *filename, int clientid, EVP_PKEY *privKey)  {
-	if ( writeInt( conn, WALLET_CODE ) == -1) return -1;
+
+/* Display the amount of money stored in the user's cloud provider account. */
+int clientWalletBalance(BIO *conn) {
+	//send the code which triggers the server to call serverWalletBalance()
+	if(writeInt(conn, WALLET_BALANCE_CODE) == -1) return -1;
+
+	//read the balance back from the server
+	int balance = readInt(conn);
+	if(balance == -1) {
+		fprintf(stderr, "Failed to get balance.\n");
+		return -1;
+	}
 	
-	writeString(conn, filename);
+	printf("You have %d cloud dollars in your cloud wallet.\n", balance);
+	return 0;
+}
+
+int serverWalletBalance(BIO *conn, int clientid) {
+	//get the balance for this user
+	int balance = getBalance(clientid);
 	
+	//return the balance (which is already -1 if failed)
+	if(writeInt(conn, balance) == -1) return -1;
+
+	return 0;
+}
+
+/* Add money to the clients cloud account, using the cloud bank dollar. */
+int clientAddToWallet(BIO *conn, char *dollarFile, EVP_PKEY *privKey)  
+{
+	//the client signs the cloud dollar file
 	unsigned int sigLength;
-	unsigned char* signature = signFile(filename, privKey, &sigLength);
+	unsigned char* signature = signFile(dollarFile, privKey, &sigLength);
+	if(signature == NULL) {
+		fprintf(stderr, "Failed to sign cloud dollar in clientAddToWallet()\n");
+		return -1;
+	}
+
+	//send the code to make the server call serverAddToWallet()
+	if ( writeInt( conn, FILL_WALLET_CODE ) == -1) return -1;
 	
-	int status = writeFile(conn, filename, filename);
+	//send the filename of the cloud dollar
+	writeString(conn, dollarFile);
+	
+	//send the cloud dollar file
+	int status = writeFile(conn, dollarFile, dollarFile);
 	if ( status < 1 ) return -1;
 	
+	//send the signature
 	status = writePacket(conn, (char *)signature, (int)sigLength );
 	
 	if ( status < 1 ) return -1;
+	return 0;
 	
 
 }
-*/
 
-/*
-int serverWallet(BIO *conn, int clientid)  {
-
-	int status = recvFile(conn);
-	if ( status < 1 ) return -1;
-	
+int serverAddToWallet(BIO *conn, int clientid, EVP_PKEY *clientKey)  {
+	//receive the filename of the cloud dollar
 	char filename[BUFFER_SIZE];
-	readString(conn, filename, sizeof(filename));
+	if(readString(conn, filename, sizeof(filename)) < 1) return -1;
+
+	//receive the cloud dollar file
+	if(recvFile(conn, TEMP_DOLLAR_FILENAME) == -1) return -1;
 	
-	char buffer[BUFFER_SIZE];
-	
-	status = readPacket(conn, buffer, sizeof(buffer));
+	//receive the signature
+	char signature[BUFFER_SIZE];
+	int status = readPacket(conn, signature, sizeof(signature));
 	if ( status == -1 ) return -1;
+	int sigSize = status;
+	printf("Signature had size %d\n", sigSize);
 	
-	int verified = verifyFile( filename, (unsigned char*)buffer, 256 );
+	int verified = verifyFile(TEMP_DOLLAR_FILENAME, (unsigned char*)signature, sigSize, clientKey);
+	/*
 	if ( verified)  {
 	    FILE *fp = fopen(filename, "r");
 	    if ( fp == NULL ) return -1;
@@ -540,15 +584,17 @@ int serverWallet(BIO *conn, int clientid)  {
 	    
 	    return 0;
 	}
-	
-  
+	*/
+	if(verified) printf("Thats a good cloud dollar!\n");
+	else printf("That cloud dollar wasn't signed by the right guy!\n");
+
+	return 0;
 }
-*/
 
 
 /* The server receives a command code, branch to the 
  * appropriate part of the protocol */
-int respondToCommand(BIO *conn, int code, int clientid) {
+int respondToCommand(BIO *conn, int code, int clientid, EVP_PKEY *clientKey) {
 	printf("Server received command %d\n", code);
 	int status;
 	switch(code) {
@@ -567,10 +613,12 @@ int respondToCommand(BIO *conn, int code, int clientid) {
 		case VERIFY_FILE_CODE:
 			status = serverVerifyFile(conn, clientid);
 			break;
-		/*case WALLET_CODE:
-			status = serverWallet(conn, clientid);
+		case WALLET_BALANCE_CODE:
+			status = serverWalletBalance(conn, clientid);
 			break;
-		*/
+		case FILL_WALLET_CODE:
+			status = serverAddToWallet(conn, clientid, clientKey);
+			break;
 		default:
 			status = 0;
 			break;

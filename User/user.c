@@ -35,35 +35,34 @@ int handleServer(BIO *server) {
 		}
 		else if (strncmp(buffer, "download ", 9) == 0)  {
 			char *filename = buffer + 9;
-			int status = clientDownloadFile(server, filename, userid, 1);
+			int status = clientDownloadFile(server, filename, 1);
 			printf("clientDownloadFile(): %d\n", status);
 			if ( status == 5 ) printf("File not found. Try ls to check your files.\n");
 		}
 		else if(strncmp(buffer, "verify ", 7) == 0) {
 			char *filename = buffer + 7;
-			clientVerifyFile(server, filename, userid);
+			clientVerifyFile(server, filename);
 		}
 		else if (strncmp(buffer, "delete ", 7) == 0)  {
 			char *filename = buffer + 7;
-			int status = clientDeleteFile(server, filename, userid);
+			int status = clientDeleteFile(server, filename);
 			if ( status < 0 || status == 5) printf("File does not exist\n");
 		}
 		else if(strncmp(buffer, "refresh ", 8) == 0) {
 			char *filename = buffer + 8;
-			int status = clientRefreshHashes(server, filename, userid);
-			if( status == -1) printf("Failed to refresh hashes for %s\n", filename);
-			else printf("Successfully generated %d new hashes for %s\n", NUM_HASHES, filename);
+			clientRefreshHashes(server, filename);
+		}
+		else if(strcmp(buffer, "balance") == 0) {
+			clientWalletBalance(server);
+		}
+		else if (strncmp(buffer, "wallet ", 7) == 0)  {
+			char *filename = buffer + 7;
+			int status = clientAddToWallet(server, filename, privKey);
+			printf("Wallet %d\n", status);
 		}
 		else if(strcmp(buffer, "quit") == 0) {
 			break;
 		}
-		/*
-		else if (strncmp(buffer, "wallet ", 7) == 0)  {
-			char *filename = buffer + 7;
-			int status = clientWallet(server, filename, userid, privKey);
-			printf("Wallet %d\n", status);
-		}
-		*/
 		else {
 			printf("Invalid Command\n");
 			writeInt(server, 0);

@@ -534,27 +534,32 @@ int clientAddToWallet(BIO *conn, char *dollarFile, EVP_PKEY *privKey)
 	//send the code to make the server call serverAddToWallet()
 	if ( writeInt( conn, FILL_WALLET_CODE ) == -1) return -1;
 	
-	//send the filename of the cloud dollar
-	writeString(conn, dollarFile);
-	
 	//send the cloud dollar file
 	int status = writeFile(conn, dollarFile, dollarFile);
 	if ( status < 1 ) return -1;
 	
 	//send the signature
 	status = writePacket(conn, (char *)signature, (int)sigLength );
-	
-	if ( status < 1 ) return -1;
-	return 0;
-	
 
+	//read the int informing us of success / failure
+	status = readInt(conn);
+	if(status == -1) return -1;
+	if(status == -2) {
+		printf("That file was not a valid cloud dollar.\n");
+		return -1;
+	}
+	if(status == -3) {
+		printf("The signature did not match the file.\n");
+		return -1;
+	}
+
+	printf("%d was added to your cloud balance.\n", status);
+	//delete the cloud dollar file??
+	
+	return 0;
 }
 
 int serverAddToWallet(BIO *conn, int clientid, EVP_PKEY *clientKey, EVP_PKEY *bankKey)  {
-	//receive the filename of the cloud dollar
-	char filename[BUFFER_SIZE];
-	if(readString(conn, filename, sizeof(filename)) < 1) return -1;
-
 	//receive the cloud dollar file
 	if(recvFile(conn, TEMP_DOLLAR_FILENAME) == -1) return -1;
 	
@@ -563,52 +568,47 @@ int serverAddToWallet(BIO *conn, int clientid, EVP_PKEY *clientKey, EVP_PKEY *ba
 	int status = readPacket(conn, signature, sizeof(signature));
 	if ( status == -1 ) return -1;
 	int sigSize = status;
-	printf("Signature had size %d\n", sigSize);
 	
-	//verify the user signed the cloud dollar
-	int verified = verifyFile(TEMP_DOLLAR_FILENAME, (unsigned char*)signature, sigSize, clientKey);
-	/*
-	if ( verified)  {
-	    FILE *fp = fopen(filename, "r");
-	    if ( fp == NULL ) return -1;
-	    
-	    char line[BUFFER_SIZE];
-	    fgets(line, sizeof(line), fp);
-	    fgets(line, sizeof(line), fp);
-	    fgets(line, sizeof(line), fp);
-	    
-	 
-	    int amount;
-	    int numMatched = sscan( line, "Amount: %d", &amount);
-	    
-	    if ( numMatched != 1 ) return -1;
-	    else updateBalance(userid, getBalance(userid) + amount);
-	    
-	    return 0;
-	}
-	*/
-	if(verified) printf("That was signed by you!\n");
-	else printf("That wasn't signed by you!\n");
-
-	//verify the cloud dollar is signed by the bank
-	verified = verifyCloudDollar(TEMP_DOLLAR_FILENAME, bankKey); 
+	//verify the cloud dollar is real (signed by the bank and right string)
+	int verified = verifyCloudDollar(TEMP_DOLLAR_FILENAME, bankKey); 
 	if(verified < 0) {
-		printf("That wasn't a valid cloud dollar.\n");
+		printf("Received an INVALID cloud dollar.\n");
+
+		//inform user of probelm
+		writeInt(conn, -2);
+		return -1;
 	}
-	else printf("That was a valid cloud dollar.\n");
+	else printf("Recieved a valid cloud dollar.\n");
 
 	int serial;
 	int amount;
 	int user;
 	status = getDollarData(TEMP_DOLLAR_FILENAME, &serial, &amount, &user);
 	printf("DOLLAR DATA %d %d %d\n", serial, amount, user);
+	
+	//verify the user signed the cloud dollar
+	verified = verifyFile(TEMP_DOLLAR_FILENAME, (unsigned char*)signature, sigSize, clientKey);
+	if(!verified) {
+		printf("Received INVALID signature for the cloud dollar.\n");
+		//infomr user of promebl
+		writeInt(conn, -3);
+		return -1;
+	}
+	else printf("Received a valid signature from %d\n", clientid);
 
+	//all valid, so up their balance
+	printf("Going to pudate hier abalnce\n");
+	int balance = getBalance(clientid);
+	status = updateBalance(clientid, balance + amount);
+	if(status == -1) {
+		//inform user
+		writeInt(conn, -1);
+		return -1;
+	}
 
-	//sign it ourselves (bank wont cash it unless two sigs)
-	//send both sigs + note to bank
-
-
-	return 0;
+	//inform user of success
+	if(writeInt(conn, amount) == -1) return -1;
+	return amount;
 }
 
 

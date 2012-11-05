@@ -109,13 +109,39 @@ USER *getUser(int targetID) {
 	}
 
 	//no user with the given id on file
-	fprintf(stderr, "getUser() called on non-existant user %u\n", targetID);
+	//fprintf(stderr, "getUser() called on non-existant user %u\n", targetID);
 	fclose(usersFile);
 	return NULL;
 }
 
 int removeUser(int targetID) {
 	return removeLine(usersFilename, targetID);
+}
+
+int addUser(int userid, int balance) {
+	//ensure not already user with this id
+	USER *u = getUser(userid);
+	if(u != NULL) return -1;
+
+	FILE *ofp = fopen(usersFilename, "a");
+	if(ofp == NULL) return -1;
+
+	USER user;
+	user.id = userid;
+	user.balance = balance;
+	writeUser(ofp, &user);
+
+	fclose(ofp);
+	return 0;
+}
+
+int updateBalance(int userid, int balance) {
+	USER *user = getUser(userid);
+	if(user == NULL) return -1;
+
+	removeUser(userid);
+	if(addUser(userid, balance) == -1) return -1;
+	return 0;
 }
 
 int getBalance(int id) {

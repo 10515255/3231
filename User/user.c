@@ -26,14 +26,12 @@ int handleServer(BIO *server) {
 
 		//process the command	
 		if(strncmp(buffer, "ls", 2) == 0) {
-			int status = clientListFiles(server);
-			printf("Status: %d\n", status);
+			clientListFiles(server);
 		}
 		else if(strncmp(buffer, "upload ", 7) == 0) {
 			char *filename = buffer + 7;
 			int status = clientUploadFile(server, filename);
 			if ( status == 5 ) printf("File does not exist\n");
-			printf("clientUploadFile(): %d\n", status);
 		}
 		else if (strncmp(buffer, "download ", 9) == 0)  {
 			char *filename = buffer + 9;
@@ -43,8 +41,7 @@ int handleServer(BIO *server) {
 		}
 		else if(strncmp(buffer, "verify ", 7) == 0) {
 			char *filename = buffer + 7;
-			int status = clientVerifyFile(server, filename, userid);
-			printf("clientVerifyFile(): %d\n", status);
+			clientVerifyFile(server, filename, userid);
 		}
 		else if (strncmp(buffer, "delete ", 7) == 0)  {
 			char *filename = buffer + 7;
@@ -56,6 +53,9 @@ int handleServer(BIO *server) {
 			int status = clientRefreshHashes(server, filename, userid);
 			if( status == -1) printf("Failed to refresh hashes for %s\n", filename);
 			else printf("Successfully generated %d new hashes for %s\n", NUM_HASHES, filename);
+		}
+		else if(strcmp(buffer, "quit") == 0) {
+			break;
 		}
 		/*
 		else if (strncmp(buffer, "wallet ", 7) == 0)  {

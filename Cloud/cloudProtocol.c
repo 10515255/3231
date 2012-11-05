@@ -1,3 +1,5 @@
+#define _BSD_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,6 +46,7 @@ int listFiles(char *buffer, int maxLength, int clientid) {
 	buffer[0] = '\0';
 	struct dirent *entry = NULL;
 	while((entry = readdir(dir)) != NULL) {
+		if(entry->d_type != DT_REG) continue;
 		//need to fit the name and a newline onto end of our buffer
 		int spaceRequired = strlen(entry->d_name) + 1;
 		if(spaceRequired > maxLength) break;	

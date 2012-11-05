@@ -190,7 +190,6 @@ unsigned char *encryptData(unsigned char *input, int inLength, int *outLength,  
 
 	//allocate memory for the encrypted output
 	unsigned int maxOutputLength = inLength + EVP_CIPHER_CTX_block_size(ctx);
-	printf("Max Output Length = %d\n", maxOutputLength);
 	unsigned char *output = malloc(maxOutputLength);
 	if(output == NULL) {
 		fprintf(stderr, "malloc() failed in encryptData()\n");
